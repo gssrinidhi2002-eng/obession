@@ -1,0 +1,2896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Touch the Grass</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1117; color: #eef2f7;
+    font-family: "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif; }
+  canvas { display: block; }
+  #vignette { position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 62%, rgba(0,0,0,.35) 100%); }
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; }
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+    border-radius: 50%; background: rgba(255,255,255,.9); box-shadow: 0 0 3px #000; transition: all .12s; }
+  #crosshair.active { width: 22px; height: 22px; margin: -11px 0 0 -11px; background: transparent;
+    border: 2px solid #7cfc8a; box-shadow: 0 0 6px rgba(0,0,0,.6); }
+  #prompt { position: fixed; left: 50%; top: calc(50% + 26px); transform: translateX(-50%);
+    padding: 6px 12px; background: rgba(10,14,20,.72); border-radius: 6px; font-size: 15px;
+    display: none; white-space: nowrap; }
+  #prompt kbd { background: #eee; color: #111; border-radius: 4px; padding: 1px 7px; font-weight: 700;
+    margin-right: 7px; font-family: inherit; }
+  #prompt small { color: #9fb0c4; margin-left: 6px; }
+  #objective { position: fixed; left: 16px; top: 16px; max-width: 360px; background: rgba(10,14,20,.68);
+    border-left: 4px solid #5fd16b; padding: 10px 14px; border-radius: 6px; font-size: 14px; line-height: 1.4; }
+  #objective .t { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #8fdc98; margin-bottom: 2px; }
+  #notebook { position: fixed; right: 16px; top: 16px; width: 340px; background: rgba(246,239,222,.95);
+    color: #2b2418; padding: 12px 16px; border-radius: 6px; font-size: 13.5px; line-height: 1.45;
+    box-shadow: 0 4px 18px rgba(0,0,0,.4); font-family: Georgia, "Times New Roman", serif; }
+  #notebook h3 { margin: 0 0 6px; font-size: 15px; border-bottom: 1px solid #b9a98a; padding-bottom: 4px;
+    display: flex; justify-content: space-between; }
+  #notebook h3 span { font-weight: normal; color: #7a6b50; font-size: 13px; }
+  #notebook ul { margin: 0; padding-left: 18px; }
+  #notebook li { margin: 5px 0; border-radius: 3px; }
+  #notebook li.new { animation: flash 1.8s ease; }
+  #notebook .empty { color: #8a7c62; font-style: italic; }
+  @keyframes flash { 0% { background: #ffe27a; } 100% { background: transparent; } }
+  #controls { position: fixed; left: 16px; bottom: 14px; font-size: 12px; color: #c9d3df;
+    background: rgba(10,14,20,.55); padding: 6px 10px; border-radius: 6px; }
+  /* --- robot chat, bottom centre --- */
+  #chat { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(640px, 92vw);
+    pointer-events: auto; font-size: 14px; }
+  #chatLog { max-height: 0; overflow-y: auto; transition: max-height .25s ease; display: flex; flex-direction: column;
+    gap: 6px; padding: 0 4px; margin-bottom: 6px; scrollbar-width: thin; }
+  #chat.open #chatLog { max-height: 220px; padding: 6px 4px; }
+  .msg { max-width: 82%; padding: 7px 12px; border-radius: 14px; line-height: 1.4; box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    animation: pop .18s ease; }
+  .msg.robot { align-self: flex-start; background: rgba(255,246,238,.96); color: #2a2420; border-bottom-left-radius: 4px; }
+  .msg.robot::before { content: "Ivy · RX-8"; display: block; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: #c2607a; margin-bottom: 2px; font-weight: 700; }
+  .msg.you { align-self: flex-end; background: rgba(63,191,85,.92); color: #07140a; border-bottom-right-radius: 4px; }
+  @keyframes pop { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+  #chatForm { display: flex; gap: 6px; background: rgba(10,14,20,.78); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px; padding: 6px; align-items: center; }
+  #chatForm .ico { width: 30px; height: 30px; border-radius: 50%; background: #fff; display: grid; place-items: center;
+    font-size: 16px; flex: none; }
+  #chatInput { flex: 1; background: transparent; border: 0; outline: 0; color: #eef2f7; font: inherit; font-size: 14px;
+    padding: 6px 4px; }
+  #chatInput::placeholder { color: #8c9bad; }
+  #chatForm button { border: 0; border-radius: 7px; background: #3fbf55; color: #07140a; font-weight: 700; padding: 7px 12px;
+    cursor: pointer; font: inherit; }
+  #chat:not(.open) #chatForm button { display: none; }
+  #chatHint { text-align: center; font-size: 11.5px; color: #9fb0c4; margin-top: 4px; }
+  #chatHint kbd { background: #eee; color: #111; border-radius: 3px; padding: 0 5px; font-weight: 700; font-family: inherit; }
+  #toast { position: fixed; left: 50%; bottom: 122px; transform: translate(-50%, 16px); max-width: 700px;
+    width: max-content; opacity: 0; transition: opacity .3s, transform .3s; background: rgba(10,14,20,.88);
+    padding: 12px 18px; border-radius: 8px; font-size: 15px; line-height: 1.5; text-align: center;
+    border: 1px solid rgba(255,255,255,.08); }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #flash { position: fixed; inset: 0; background: #b6ffb0; opacity: 0; pointer-events: none; transition: opacity 1.2s; }
+  .overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(8,12,18,.78); backdrop-filter: blur(3px); z-index: 10; }
+  .card { width: min(560px, 92vw); background: #111823; border: 1px solid #243244; border-radius: 14px;
+    padding: 30px 34px; box-shadow: 0 20px 60px rgba(0,0,0,.5); text-align: center; }
+  .card h1 { margin: 0; font-size: 44px; letter-spacing: .02em; }
+  .card h1 em { color: #6fdc7a; font-style: normal; }
+  .card p { color: #b8c4d4; line-height: 1.55; }
+  .card .keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; text-align: left;
+    margin: 18px auto; width: max-content; font-size: 14px; color: #cdd7e3; }
+  .card kbd { background: #e8edf3; color: #111; border-radius: 4px; padding: 1px 7px; font-weight: 700;
+    font-family: inherit; font-size: 13px; }
+  .btn { display: inline-block; margin: 8px 6px 0; padding: 12px 26px; border-radius: 8px; border: 0;
+    background: #3fbf55; color: #07140a; font-weight: 700; font-size: 16px; cursor: pointer; }
+  .btn.alt { background: #2a3646; color: #e6edf5; }
+  .btn:hover { filter: brightness(1.1); }
+  #win .stats { font-size: 15px; color: #d6e0ea; margin: 14px 0; }
+  .card .audio { display: flex; gap: 16px; justify-content: center; margin: 4px 0 10px; font-size: 13px; color: #b8c4d4; flex-wrap: wrap; }
+  .card .audio label { display: flex; align-items: center; gap: 6px; cursor: default; }
+  .card .audio input { width: 96px; accent-color: #3fbf55; }
+  #blackout { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 9; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="flash"></div>
+<div id="blackout"></div>
+
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="prompt"></div>
+  <div id="objective"><div class="t">Objective</div><div id="objText">The garden door is locked with a <b>4-digit keypad</b>. Find the code — without making Ivy angry.</div></div>
+  <div id="notebook"><h3>Notebook <span id="clueCount">0 notes</span></h3>
+    <ul id="clueList"><li class="empty">Nothing yet. Look around, and talk to Ivy.</li></ul></div>
+  <div id="controls">WASD move · Mouse look · <b>E</b>/Click interact · <b>T</b> chat · <b>M</b> mute music · Shift run · Esc pause</div>
+  <div id="toast"></div>
+  <div id="chat">
+    <div id="chatLog"></div>
+    <form id="chatForm" autocomplete="off">
+      <div class="ico">🤖</div>
+      <input id="chatInput" placeholder="Talk to Ivy…" maxlength="140" />
+      <button type="submit">Send</button>
+    </form>
+    <div id="chatHint">Press <kbd>T</kbd> to talk to Ivy · <kbd>Esc</kbd> to close</div>
+  </div>
+</div>
+
+<div id="start" class="overlay">
+  <div class="card">
+    <h1>Touch the <em>Grass</em></h1>
+    <p>Day 47 indoors. Ivy, your robot companion, loves you very much — so much that she has closed the curtains
+      and locked the glass garden door with a 4-digit code.<br>Get the code, get outside, and touch some grass.
+      <br><b style="color:#ff8f9c">Don't make her angry.</b></p>
+    <div class="keys">
+      <kbd>W A S D</kbd><span>Move (<kbd>Shift</kbd> to run)</span>
+      <kbd>Mouse</kbd><span>Look around</span>
+      <kbd>E</kbd><span>Interact / examine (left-click works too)</span>
+      <kbd>T</kbd><span>Talk to Ivy — type anything, she answers</span>
+      <kbd>0–9</kbd><span>Type on the keypad when standing at it (<kbd>Enter</kbd>, <kbd>Backspace</kbd>)</span>
+      <kbd>Esc</kbd><span>Pause</span>
+    </div>
+    <div class="audio" id="audioCtl">
+      <label>Music <input type="range" id="volMusic" min="0" max="1" step="0.05"></label>
+      <label>Sound <input type="range" id="volSfx" min="0" max="1" step="0.05"></label>
+      <label>Ivy's voice <input type="range" id="volVoice" min="0" max="1" step="0.05"></label>
+    </div>
+    <button class="btn" id="playBtn">Click to play</button>
+  </div>
+</div>
+
+<div id="gameover" class="overlay hidden">
+  <div class="card">
+    <h1 style="color:#ff5d6c">GAME OVER</h1>
+    <p>Ivy snapped. The lights never came back on,<br>and you never got to leave.</p>
+    <button class="btn" id="goAgain">Try again</button>
+  </div>
+</div>
+
+<div id="win" class="overlay hidden">
+  <div class="card">
+    <h1>You touched the <em>grass</em> 🌱</h1>
+    <p id="winText">The sun is warm. The grass is soft. Your vitamin D levels are recovering.</p>
+    <div class="stats" id="winStats"></div>
+    <button class="btn" id="wanderBtn">Keep wandering</button>
+    <button class="btn alt" id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+// =====================================================================
+//  Renderer / scene / camera
+// =====================================================================
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+// Render scale is adaptive (see PerformanceManager below): it starts at up to 1.5x
+// on retina screens and steps down automatically if frames take too long, so the
+// image is sharp where the GPU allows it and never tanks the frame rate.
+const DEBUG = new URLSearchParams(location.search).has('debug');
+const RS_MAX = Math.min(devicePixelRatio || 1, 2);
+let renderScale = Math.min(devicePixelRatio || 1, 1.5);
+renderer.setPixelRatio(renderScale);
+renderer.info.autoReset = false;   // several passes per frame; reset manually so stats cover all of them
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+// Image-based lighting: a neutral studio environment gives every PBR material
+// real reflections and soft ambient shading — the biggest single step from
+// "flat Three.js demo" to a solid, three-dimensional look.
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+pmrem.dispose();
+const FOG_COLOR = new THREE.Color().setRGB(0.93, 0.85, 0.70);   // warm golden haze, like the reference's background
+scene.fog = new THREE.Fog(FOG_COLOR, 40, 150);
+scene.background = FOG_COLOR;
+
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 220);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  resizePost();
+});
+
+// =====================================================================
+//  Render pipeline — clean and physically based, no stylisation:
+//  scene (4x MSAA, half-float) → heat haze (only enabled while the house
+//  is hot) → OutputPass (ACES tone mapping + sRGB).
+// =====================================================================
+const _bufSize = new THREE.Vector2();
+renderer.getDrawingBufferSize(_bufSize);
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(_bufSize.x, _bufSize.y, { type: THREE.HalfFloatType, samples: 4 }));
+composer.setPixelRatio(renderScale);
+composer.setSize(innerWidth, innerHeight);
+composer.addPass(new RenderPass(scene, camera));
+const heatPass = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, uHeat: { value: 0 }, uTime: { value: 0 }, uAspect: { value: innerWidth / innerHeight } },
+  vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uHeat, uTime, uAspect; varying vec2 vUv;
+    float h(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+    float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(h(i), h(i + vec2(1.0, 0.0)), f.x), mix(h(i + vec2(0.0, 1.0)), h(i + vec2(1.0, 1.0)), f.x), f.y); }
+    void main() {
+      vec2 hp = vec2(vUv.x * uAspect * 18.0, vUv.y * 20.0 - uTime * 1.3);        // rising shimmer
+      vec2 hz = vec2(vn(hp), vn(hp * 1.3 + vec2(7.3, 1.9))) - 0.5;
+      vec3 c = texture2D(tDiffuse, vUv + hz * uHeat * 0.006).rgb;
+      c = mix(c, c * vec3(1.08, 0.97, 0.84), uHeat * 0.8);                       // air reads warmer
+      vec2 vc = vUv - 0.5;
+      c *= 1.0 - dot(vc, vc) * uHeat * 0.7;                                       // heavier edges when it's stifling
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+});
+heatPass.enabled = false;
+composer.addPass(heatPass);
+composer.addPass(new OutputPass());
+const postMat = heatPass;   // EnvironmentManager drives postMat.uniforms.uHeat / uTime
+function resizePost() {
+  renderer.getDrawingBufferSize(_bufSize);
+  composer.setPixelRatio(renderScale);
+  composer.setSize(innerWidth, innerHeight);
+  heatPass.uniforms.uAspect.value = innerWidth / innerHeight;
+  heatMotes.material.uniforms.uProj.value = motesProj();
+}
+function setRenderScale(r) {
+  r = Math.round(THREE.MathUtils.clamp(r, 1, RS_MAX) * 4) / 4;
+  if (r === renderScale) return;
+  renderScale = r;
+  renderer.setPixelRatio(r);
+  renderer.setSize(innerWidth, innerHeight);
+  resizePost();
+}
+function renderFrame() { composer.render(); }
+
+// =====================================================================
+//  Layout constants (metres). Room interior: x ∈ [-3,3], z ∈ [-2,2].
+//  North (-z) = sliding window + garden. South (+z) = entrance door.
+// =====================================================================
+const HX = 3, HZ = 2, ROOM_H = 2.8, WT = 0.2;
+const WIN_X0 = -1.5, WIN_X1 = 1.5, WIN_H = 2.2;
+const DOOR_X0 = -2.6, DOOR_X1 = -1.8, DOOR_H = 2.1;
+const CODE = '1704';   // Ivy's birthday, 17 April — day then month
+const EYE = 1.6, PLAYER_R = 0.3, REACH = 2.6;
+const KEYPAD_POS = new THREE.Vector3(2.1, 1.35, -2.0);
+
+// =====================================================================
+//  Helpers
+// =====================================================================
+const rayTargets = [];     // meshes considered by the interaction raycast (blockers + interactables)
+const colliders = [];      // 2D AABBs in the XZ plane
+
+function addCollider(minX, maxX, minZ, maxZ) {
+  const c = { minX, maxX, minZ, maxZ, on: true };
+  colliders.push(c);
+  return c;
+}
+function blocked(x, z, r) {
+  for (const c of colliders) {
+    if (!c.on) continue;
+    if (x + r > c.minX && x - r < c.maxX && z + r > c.minZ && z - r < c.maxZ) return true;
+  }
+  return false;
+}
+function mesh(geo, mat, x = 0, y = 0, z = 0, parent = scene, { cast = true, receive = true, ray = true } = {}) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.castShadow = cast;
+  m.receiveShadow = receive;
+  parent.add(m);
+  if (ray) rayTargets.push(m);
+  return m;
+}
+// opts.round = edge radius (m): bevelled furniture catches light on its edges and
+// reads as solid 3D objects instead of flat-shaded boxes.
+function box(w, h, d, mat, x, y, z, parent = scene, opts = {}) {
+  const r = opts.round ? Math.min(opts.round, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3) : 0;
+  const geo = r > 0 ? new RoundedBoxGeometry(w, h, d, 2, r) : new THREE.BoxGeometry(w, h, d);
+  return mesh(geo, mat, x, y, z, parent, opts);
+}
+function setInteract(obj, data) {
+  obj.traverse(o => {
+    if (!o.isMesh) return;
+    o.userData.interact = data;
+    if (!rayTargets.includes(o)) rayTargets.push(o);
+  });
+}
+function canvasTex(w, h, draw, repeat) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  draw(g, w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
+  t.userData = { canvas: c, ctx: g };
+  return t;
+}
+const rand = (a, b) => a + Math.random() * (b - a);
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = t => t * t * (3 - 2 * t);
+const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, ...o });
+
+// =====================================================================
+//  Procedural textures
+// =====================================================================
+const woodTex = canvasTex(1024, 1024, (g, W, H) => {
+  const rows = 8, rh = H / rows;
+  for (let r = 0; r < rows; r++) {
+    let x = -rand(0, 400);
+    while (x < W) {
+      const len = rand(280, 560), hue = rand(26, 36), l = rand(50, 62);
+      g.fillStyle = `hsl(${hue},48%,${l}%)`;
+      g.fillRect(x, r * rh, len, rh);
+      for (let i = 0; i < 26; i++) {
+        g.strokeStyle = `hsla(${hue},45%,${l + rand(-9, 9)}%,.35)`;
+        g.lineWidth = rand(0.8, 2.4);
+        const y = r * rh + rand(2, rh - 2);
+        g.beginPath(); g.moveTo(x, y);
+        g.bezierCurveTo(x + len * .3, y + rand(-5, 5), x + len * .7, y + rand(-5, 5), x + len, y + rand(-3, 3));
+        g.stroke();
+      }
+      g.fillStyle = 'rgba(120,70,40,.35)'; g.fillRect(x, r * rh, 2, rh);
+      x += len;
+    }
+    g.fillStyle = 'rgba(120,70,40,.4)'; g.fillRect(0, r * rh, W, 2);
+  }
+}, [3, 2]);
+
+const rugTex = canvasTex(512, 512, (g, W, H) => {
+  g.fillStyle = '#ecdcd6'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 9000; i++) {
+    g.fillStyle = `rgba(${rand(180, 235) | 0},${rand(150, 200) | 0},${rand(170, 215) | 0},.18)`;
+    g.fillRect(rand(0, W), rand(0, H), 2, 2);
+  }
+  g.strokeStyle = '#cfa8bd'; g.lineWidth = 10; g.strokeRect(24, 24, W - 48, H - 48);
+  g.lineWidth = 3; g.strokeRect(44, 44, W - 88, H - 88);
+});
+
+const grassGroundTex = canvasTex(512, 512, (g, W, H) => {
+  g.fillStyle = '#93b06a'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 16000; i++) {
+    const x = rand(0, W), y = rand(0, H);
+    g.strokeStyle = `hsla(${rand(65, 100)},${rand(35, 55)}%,${rand(40, 62)}%,.7)`;
+    g.lineWidth = 1.2;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + rand(-2, 2), y - rand(3, 8)); g.stroke();
+  }
+}, [80, 80]);
+
+// =====================================================================
+//  Materials
+// =====================================================================
+// Palette is deliberately pastel & warm — peach, cream, lavender, sage, dusty
+// pink — with no true blacks, so it reads like soft hand-painted concept art.
+const M = {
+  wall: std(0xead3b8, { roughness: 0.92 }),
+  ceiling: std(0xf9efe2, { roughness: 1 }),
+  roof: std(0x8a7a9c, { roughness: 0.9 }),
+  skirting: std(0xc49a78, { roughness: 0.6 }),
+  floor: new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.42 }),
+  rug: new THREE.MeshStandardMaterial({ map: rugTex, roughness: 1 }),
+  fabric: new THREE.MeshPhysicalMaterial({ color: 0xd3caf0, roughness: 0.92, sheen: 1, sheenRoughness: 0.55, sheenColor: 0xffffff }),
+  fabric2: new THREE.MeshPhysicalMaterial({ color: 0xbdb1e4, roughness: 0.92, sheen: 1, sheenRoughness: 0.55, sheenColor: 0xffffff }),
+  pillow: new THREE.MeshPhysicalMaterial({ color: 0xf49ab8, roughness: 0.9, sheen: 1, sheenRoughness: 0.5, sheenColor: 0xffe0ea }),
+  wood: std(0xb8805a, { roughness: 0.6 }),
+  woodLight: std(0xdca878, { roughness: 0.5 }),
+  dark: std(0x625a78, { roughness: 0.45, metalness: 0.2 }),
+  alu: std(0xb4b0c2, { roughness: 0.3, metalness: 0.85 }),
+  glass: new THREE.MeshStandardMaterial({ color: 0xe6f1ff, transparent: true, opacity: 0.14, roughness: 0.02,
+    metalness: 0.0, depthWrite: false, side: THREE.DoubleSide }),
+  white: new THREE.MeshPhysicalMaterial({ color: 0xfbf3e6, roughness: 0.32, clearcoat: 0.7, clearcoatRoughness: 0.18 }),
+  visor: new THREE.MeshPhysicalMaterial({ color: 0x2a2640, roughness: 0.08, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.05 }),
+  orange: std(0xf27ea3, { roughness: 0.5 }),        // robot accent — dusty pink, like the reference's shirt
+  skyblue: std(0xaed6ee, { roughness: 0.5 }),       // robot panels / cap — the reference's pale blue box
+  pot: std(0xdea684, { roughness: 0.85 }),
+  potWhite: std(0xf3eadc, { roughness: 0.6 }),
+  soil: std(0x8a6a58, { roughness: 1 }),
+  leaves: [std(0x86a86e), std(0x9bb97e), std(0x72945f), std(0xb0c98e)],
+  trunk: std(0xb08462, { roughness: 0.95 }),
+  stone: std(0xd0c6bc, { roughness: 0.95 }),
+  fence: std(0xf8efe0, { roughness: 0.8 }),
+  skin: std(0xe8b898, { roughness: 0.7 }),
+  bookRed: std(0xd9707a, { roughness: 0.7 }),
+};
+const bookMats = [0xd96f78, 0x7494cc, 0x86b28c, 0xf1c86e, 0xac8cd0, 0x746c8a, 0xf3e8d4, 0xdc9f70]
+  .map(c => std(c, { roughness: 0.7 }));
+
+// =====================================================================
+//  Lighting
+// =====================================================================
+const SUN_DIR = new THREE.Vector3(0.3, 0.72, -0.62).normalize();   // sun in the northern sky → light pours in the window
+const hemi = new THREE.HemisphereLight(0xfff1dc, 0xb9a6dd, 0.55);   // warm sky, lavender bounce → purple-tinted shadows
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffe4b8, 3.2);
+sun.target.position.set(0, 0, -4);
+sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -13, right: 13, top: 13, bottom: -13, near: 8, far: 55 });   // room + garden only
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.025;
+scene.add(sun, sun.target);
+
+const CEIL_I = 30, FILL_I = 1.6, LAMP_I = 2.0, HEMI_I = 0.3;
+// ceiling fixture = wide soft spot with its own shadow map: furniture is
+// grounded by real contact shadows instead of floating on the floor
+const ceilingLight = new THREE.SpotLight(0xffd9b0, CEIL_I, 0, 1.25, 0.9, 2);
+ceilingLight.position.set(0, 2.72, 0);
+ceilingLight.target.position.set(0, 0, 0.15);
+ceilingLight.castShadow = true;
+ceilingLight.shadow.mapSize.set(1024, 1024);
+ceilingLight.shadow.camera.near = 0.2; ceilingLight.shadow.camera.far = 7;
+ceilingLight.shadow.bias = -0.0004; ceilingLight.shadow.normalBias = 0.02;
+scene.add(ceilingLight, ceilingLight.target);
+const fillLight = new THREE.PointLight(0xffe2bd, FILL_I, 0, 2);
+fillLight.position.set(-1.8, 2.3, 1.2);
+scene.add(fillLight);
+
+// Sky dome
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(180, 32, 16),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: { uSun: { value: SUN_DIR } },
+    vertexShader: `
+      varying vec3 vDir;
+      void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `
+      uniform vec3 uSun;
+      varying vec3 vDir;
+      void main() {
+        vec3 d = normalize(vDir);
+        float h = max(d.y, 0.0);
+        // pastel sky: cream-gold horizon → soft powder blue overhead, big diffuse sun glow
+        vec3 col = mix(vec3(0.94, 0.86, 0.70), vec3(0.46, 0.66, 0.92), pow(h, 0.6));
+        float s = max(dot(d, uSun), 0.0);
+        col += vec3(1.0, 0.9, 0.7) * pow(s, 6.0) * 0.35;
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`
+  })
+);
+sky.renderOrder = -1;
+scene.add(sky);
+
+// =====================================================================
+//  Room shell: floor, walls, ceiling/roof
+// =====================================================================
+const floor = mesh(new THREE.PlaneGeometry(HX * 2, HZ * 2), M.floor, 0, 0.001, 0, scene, { cast: false });
+floor.rotation.x = -Math.PI / 2;
+
+// North wall (with window opening)
+box(1.7, ROOM_H, WT, M.wall, -2.35, ROOM_H / 2, -HZ - WT / 2);
+box(1.7, ROOM_H, WT, M.wall, 2.35, ROOM_H / 2, -HZ - WT / 2);
+box(3.0, ROOM_H - WIN_H, WT, M.wall, 0, (ROOM_H + WIN_H) / 2, -HZ - WT / 2);
+addCollider(-3.2, WIN_X0, -2.2, -2.0);
+addCollider(WIN_X1, 3.2, -2.2, -2.0);
+// South wall (with entrance door opening)
+box(0.6, ROOM_H, WT, M.wall, -2.9, ROOM_H / 2, HZ + WT / 2);
+box(5.0, ROOM_H, WT, M.wall, 0.7, ROOM_H / 2, HZ + WT / 2);
+box(0.8, ROOM_H - DOOR_H, WT, M.wall, -2.2, (ROOM_H + DOOR_H) / 2, HZ + WT / 2);
+addCollider(-3.2, 3.2, 2.0, 2.2);
+// West / East walls
+box(WT, ROOM_H, HZ * 2, M.wall, -HX - WT / 2, ROOM_H / 2, 0);
+box(WT, ROOM_H, HZ * 2, M.wall, HX + WT / 2, ROOM_H / 2, 0);
+addCollider(-3.2, -3.0, -2.2, 2.2);
+addCollider(3.0, 3.2, -2.2, 2.2);
+
+// Skirting boards
+box(1.5, 0.08, 0.02, M.skirting, -2.25, 0.04, -1.99, scene, { cast: false });
+box(1.5, 0.08, 0.02, M.skirting, 2.25, 0.04, -1.99, scene, { cast: false });
+box(4.8, 0.08, 0.02, M.skirting, 0.6, 0.04, 1.99, scene, { cast: false });
+box(0.02, 0.08, 4, M.skirting, -2.99, 0.04, 0, scene, { cast: false });
+box(0.02, 0.08, 4, M.skirting, 2.99, 0.04, 0, scene, { cast: false });
+
+// Roof slab: bottom face is the white ceiling
+box(7.0, 0.25, 5.4, M.roof, 0, ROOM_H + 0.125, -0.2);
+mesh(new THREE.PlaneGeometry(HX * 2, HZ * 2), M.ceiling, 0, ROOM_H - 0.001, 0, scene, { cast: false }).rotation.x = Math.PI / 2;
+const lampDisc = mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.04, 32),
+  new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff0d6, emissiveIntensity: 1.2 }), 0, ROOM_H - 0.02, 0, scene, { cast: false });
+
+// =====================================================================
+//  Sliding window (north wall) + frame
+// =====================================================================
+box(3.0, 0.05, 0.2, M.alu, 0, WIN_H - 0.025, -2.1);                          // head track
+box(3.0, 0.03, 0.2, M.alu, 0, 0.015, -2.1, scene, { cast: false });           // sill / threshold
+box(0.04, WIN_H, 0.2, M.alu, WIN_X0 + 0.02, WIN_H / 2, -2.1);
+box(0.04, WIN_H, 0.2, M.alu, WIN_X1 - 0.02, WIN_H / 2, -2.1);
+
+function glassPanel(w, h) {
+  const g = new THREE.Group();
+  const f = 0.05;
+  box(w, f, 0.045, M.alu, 0, h - f / 2, 0, g);
+  box(w, f, 0.045, M.alu, 0, f / 2, 0, g);
+  box(f, h, 0.045, M.alu, -w / 2 + f / 2, h / 2, 0, g);
+  box(f, h, 0.045, M.alu, w / 2 - f / 2, h / 2, 0, g);
+  const glass = mesh(new THREE.PlaneGeometry(w - 2 * f, h - 2 * f), M.glass, 0, h / 2, 0, g, { cast: false, receive: false });
+  g.userData.glass = glass;
+  return g;
+}
+const PANEL_H = WIN_H - 0.05 - 0.03;
+const fixedPanel = glassPanel(1.52, PANEL_H);
+fixedPanel.position.set(-0.74, 0.03, -2.14);
+scene.add(fixedPanel);
+fixedPanel.userData.glass.renderOrder = 1;
+const slidePanel = glassPanel(1.52, PANEL_H);
+const SLIDE_CLOSED_X = 0.74, SLIDE_OPEN_X = -0.66;
+slidePanel.position.set(SLIDE_CLOSED_X, 0.03, -2.06);
+scene.add(slidePanel);
+slidePanel.userData.glass.renderOrder = 2;
+box(0.025, 0.4, 0.04, M.alu, -0.66, 1.05, 0.04, slidePanel);                    // handle
+const lockLightMat = new THREE.MeshBasicMaterial({ color: 0xff3030 });
+mesh(new THREE.BoxGeometry(0.02, 0.05, 0.012), lockLightMat, -0.66, 1.32, 0.03, slidePanel, { cast: false });
+const windowData = {
+  type: 'window',
+  label: () => !unlocked ? 'Sliding window <small>(locked)</small>' : winState === 'closed' ? 'Open the sliding window' : 'Sliding window'
+};
+setInteract(fixedPanel, windowData);
+setInteract(slidePanel, windowData);
+const winCollider = addCollider(WIN_X0, WIN_X1, -2.2, -2.0);
+
+// Curtains + rod
+// (the curtain panels themselves are built by CurtainSystem — they animate)
+const curtainMat = std(0xefe6d2, { roughness: 1, side: THREE.DoubleSide });
+mesh(new THREE.CylinderGeometry(0.012, 0.012, 3.8, 8), M.alu, 0, 2.42, -1.94, scene).rotation.z = Math.PI / 2;
+
+// =====================================================================
+//  Smart-lock keypad (physical, beside the window)
+// =====================================================================
+const keypad = new THREE.Group();
+keypad.position.copy(KEYPAD_POS);
+scene.add(keypad);
+const kpBody = box(0.26, 0.46, 0.03, M.dark, 0, 0, 0.015, keypad, { round: 0.01 });
+setInteract(kpBody, { type: 'keypad', label: 'Smart-lock keypad' });
+const kpTex = canvasTex(512, 192, () => {});
+// Screens with readable text opt out of the paint filter: they write alpha = 0
+// into the scene buffer (NoBlending so it lands raw), and the post shader uses
+// that as a "keep this crisp" mask. Everything else in the scene has alpha 1.
+function crisp(m) { return m; }   // (kept for call sites; the paint filter it bypassed is gone)
+const screenMat = map => crisp(new THREE.MeshBasicMaterial({ map, toneMapped: false }));
+const kpScreen = mesh(new THREE.PlaneGeometry(0.21, 0.079), screenMat(kpTex),
+  0, 0.16, 0.031, keypad, { cast: false });
+setInteract(kpScreen, { type: 'keypad', label: 'Smart-lock keypad' });
+const kpLedMat = new THREE.MeshBasicMaterial({ color: 0xff2a2a, toneMapped: false });
+mesh(new THREE.SphereGeometry(0.008, 12, 8), kpLedMat, 0.105, 0.21, 0.032, keypad, { cast: false });
+// "SMART LOCK" plaque
+const plaqueTex = canvasTex(256, 48, (g, W, H) => {
+  g.fillStyle = '#1b1e23'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#9fb0c4'; g.font = 'bold 26px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('SMART LOCK', W / 2, H / 2);
+});
+mesh(new THREE.PlaneGeometry(0.16, 0.03), new THREE.MeshBasicMaterial({ map: plaqueTex }), 0, -0.205, 0.031, keypad, { cast: false });
+
+const KEY_LAYOUT = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'OK'];
+const KEY_TEXT = { C: 'CLR', OK: 'ENT' };
+const keyObjs = {};
+const keySideMat = std(0x3a4049, { roughness: 0.5 });
+const keyFaceGeo = new THREE.PlaneGeometry(0.062, 0.054);
+KEY_LAYOUT.forEach((k, i) => {
+  const col = i % 3, row = Math.floor(i / 3);
+  const bg = k === 'C' ? '#7a2626' : k === 'OK' ? '#236b34' : '#2d333c';
+  const tex = canvasTex(128, 112, (g, W, H) => {
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `bold ${KEY_TEXT[k] ? 44 : 70}px sans-serif`;
+    g.fillText(KEY_TEXT[k] || k, W / 2, H / 2 + 3);
+  });
+  const face = crisp(new THREE.MeshStandardMaterial({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.3, roughness: 0.5 }));
+  const btn = box(0.062, 0.054, 0.018, keySideMat, (col - 1) * 0.072, 0.075 - row * 0.066, 0.039, keypad, { cast: false });
+  mesh(keyFaceGeo, face, 0, 0, 0.0092, btn, { cast: false });   // front face as its own quad: one material per mesh
+  const data = { type: 'key', key: k };
+  setInteract(btn, data);
+  keyObjs[k] = { btn, mat: face, baseZ: 0.039, t: 0 };
+});
+
+// =====================================================================
+//  Furniture
+// =====================================================================
+// Rug
+const rug = mesh(new THREE.PlaneGeometry(3.3, 2.5), M.rug, 0, 0.006, 0.15, scene, { cast: false });
+rug.rotation.x = -Math.PI / 2;
+
+// Sofa (back to the window, facing south)
+const sofa = new THREE.Group(); sofa.position.set(0, 0, -0.35); scene.add(sofa);
+box(1.8, 0.3, 0.9, M.fabric2, 0, 0.22, 0, sofa, { round: 0.05 });
+box(1.8, 0.55, 0.22, M.fabric2, 0, 0.62, -0.335, sofa, { round: 0.07 });
+box(0.2, 0.58, 0.9, M.fabric2, -1.0, 0.36, 0, sofa, { round: 0.07 });
+box(0.2, 0.58, 0.9, M.fabric2, 1.0, 0.36, 0, sofa, { round: 0.07 });
+for (const f of [-0.6, 0, 0.6]) {
+  box(0.58, 0.4, 0.14, M.fabric, f, 0.72, -0.18, sofa, { round: 0.06 });     // back cushions
+}
+const seatCushions = new THREE.Group(); sofa.add(seatCushions);
+for (const f of [-0.6, 0, 0.6]) box(0.59, 0.13, 0.62, M.fabric, f, 0.43, 0.1, seatCushions, { round: 0.05 });
+const pillow = box(0.36, 0.34, 0.12, M.pillow, 0.66, 0.68, -0.05, sofa, { round: 0.05 });
+pillow.rotation.set(-0.25, -0.35, 0.12);
+for (const [lx, lz] of [[-1.02, -0.4], [1.02, -0.4], [-1.02, 0.4], [1.02, 0.4]]) box(0.05, 0.07, 0.05, M.wood, lx, 0.035, lz, sofa);
+setInteract(seatCushions, { type: 'sofa', label: 'Check the sofa cushions' });
+setInteract(pillow, { type: 'sofa', label: 'Check the sofa cushions' });
+addCollider(-1.1, 1.1, -0.8, 0.1);
+
+// Coffee table
+const table = new THREE.Group(); table.position.set(0, 0, 0.75); scene.add(table);
+box(1.2, 0.05, 0.55, M.woodLight, 0, 0.4, 0, table, { round: 0.015 });
+box(1.1, 0.03, 0.46, M.wood, 0, 0.12, 0, table);
+for (const [lx, lz] of [[-0.55, -0.22], [0.55, -0.22], [-0.55, 0.22], [0.55, 0.22]]) box(0.05, 0.38, 0.05, M.wood, lx, 0.19, lz, table);
+addCollider(-0.62, 0.62, 0.46, 1.04);
+// Diary (clue)
+const diaryCover = canvasTex(128, 170, (g, W, H) => {
+  g.fillStyle = '#8f2723'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#d9b36a'; g.lineWidth = 4; g.strokeRect(10, 10, W - 20, H - 20);
+  g.fillStyle = '#e8c77e'; g.font = 'italic bold 22px Georgia'; g.textAlign = 'center';
+  g.fillText('Diary', W / 2, 70);
+});
+const diaryTop = new THREE.MeshStandardMaterial({ map: diaryCover, roughness: 0.7 });
+const pages = std(0xf1ead8);
+const diary = box(0.17, 0.035, 0.24, [pages, M.bookRed, diaryTop, M.bookRed, pages, pages], 0.26, 0.443, 0.02, table);
+diary.rotation.y = 0.3;
+setInteract(diary, { type: 'book', label: 'Read the diary' });
+// Cup
+const cup = new THREE.Group(); cup.position.set(-0.3, 0.425, -0.05); table.add(cup);
+mesh(new THREE.CylinderGeometry(0.04, 0.033, 0.09, 20), M.white, 0, 0.045, 0, cup);
+mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.005, 20), std(0x2a1608, { roughness: 0.2 }), 0, 0.08, 0, cup, { cast: false });
+mesh(new THREE.TorusGeometry(0.022, 0.006, 8, 16), M.white, 0.045, 0.045, 0, cup).rotation.y = Math.PI / 2;
+setInteract(cup, { type: 'cup', label: 'Examine the cup' });
+box(0.05, 0.02, 0.15, M.dark, -0.05, 0.435, 0.1, table).rotation.y = -0.4;   // remote
+
+// Side table + lamp
+const side = new THREE.Group(); side.position.set(1.52, 0, -0.42); scene.add(side);
+mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.03, 28), M.woodLight, 0, 0.55, 0, side);
+mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.54, 12), M.wood, 0, 0.27, 0, side);
+mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.02, 24), M.wood, 0, 0.01, 0, side);
+const lamp = new THREE.Group(); lamp.position.y = 0.565; side.add(lamp);
+mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.05, 20), M.white, 0, 0.025, 0, lamp);
+mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.2, 8), M.alu, 0, 0.15, 0, lamp);
+const shadeMat = new THREE.MeshStandardMaterial({ color: 0xf5e6c8, emissive: 0xffc27a, emissiveIntensity: 0.8, side: THREE.DoubleSide, roughness: 1 });
+mesh(new THREE.CylinderGeometry(0.09, 0.15, 0.18, 24, 1, true), shadeMat, 0, 0.3, 0, lamp, { cast: false });
+const lampLight = new THREE.PointLight(0xffc27a, LAMP_I, 0, 2);
+lampLight.position.set(1.52, 0.85, -0.42);
+scene.add(lampLight);
+setInteract(lamp, { type: 'lamp', label: () => lampOn ? 'Turn lamp off' : 'Turn lamp on' });
+addCollider(1.26, 1.78, -0.68, -0.16);
+
+// TV / Smart panel on east wall + media console
+box(0.45, 0.45, 2.0, M.wood, 2.775, 0.225, 0.2, scene, { round: 0.02 });
+box(0.005, 0.3, 0.9, M.woodLight, 2.547, 0.23, -0.25, scene, { cast: false });
+box(0.005, 0.3, 0.9, M.woodLight, 2.547, 0.23, 0.65, scene, { cast: false });
+addCollider(2.54, 3.0, -0.82, 1.22);
+const tvFrame = box(0.06, 0.95, 1.62, M.dark, 2.96, 1.5, 0.2, scene, { round: 0.02 });
+const panelTex = canvasTex(1024, 580, () => {});
+const tvScreen = mesh(new THREE.PlaneGeometry(1.55, 0.88), screenMat(panelTex),
+  2.927, 1.5, 0.2, scene, { cast: false });
+tvScreen.rotation.y = -Math.PI / 2;
+setInteract(tvFrame, { type: 'panel', label: 'Examine smart panel' });
+setInteract(tvScreen, { type: 'panel', label: 'Examine smart panel' });
+
+// Low cabinet along south wall
+box(2.0, 0.42, 0.36, M.wood, 1.2, 0.21, 1.8, scene, { round: 0.02 });
+box(1.96, 0.02, 0.005, M.woodLight, 1.2, 0.3, 1.618, scene, { cast: false });
+addCollider(0.2, 2.2, 1.6, 2.0);
+
+// Bookshelf on west wall
+const shelf = new THREE.Group(); shelf.position.set(-2.81, 0, -0.45); scene.add(shelf);
+box(0.36, 2.0, 0.03, M.wood, 0, 1.0, -0.835, shelf);
+box(0.36, 2.0, 0.03, M.wood, 0, 1.0, 0.835, shelf);
+box(0.02, 2.0, 1.7, M.wood, -0.17, 1.0, 0, shelf);
+for (let i = 0; i < 6; i++) box(0.35, 0.03, 1.64, M.wood, -0.005, 0.05 + i * 0.385, 0, shelf);
+for (let lvl = 0; lvl < 5; lvl++) {
+  const y = 0.065 + lvl * 0.385;
+  let z = -0.8;
+  while (z < 0.78) {
+    if (Math.random() < 0.06) { z += rand(0.08, 0.2); continue; }
+    const w = rand(0.025, 0.055), h = rand(0.2, 0.31);
+    if (z + w > 0.8) break;
+    const b = box(rand(0.2, 0.26), h, w, bookMats[(Math.random() * bookMats.length) | 0], 0.02, y + h / 2, z + w / 2, shelf, { ray: false });
+    if (Math.random() < 0.08) b.rotation.x = 0.12;
+    z += w + 0.003;
+  }
+}
+setInteract(shelf, { type: 'shelf', label: 'Browse the bookshelf' });
+addCollider(-3.0, -2.62, -1.31, 0.41);
+
+// Entrance door (south wall)
+const door = new THREE.Group(); door.position.set(-2.2, 0, 1.975); scene.add(door);
+box(0.8, DOOR_H, 0.05, M.woodLight, 0, DOOR_H / 2, 0, door);
+for (const y of [0.55, 1.45]) box(0.6, 0.6, 0.01, M.wood, 0, y, -0.031, door, { cast: false });
+mesh(new THREE.SphereGeometry(0.03, 12, 8), M.alu, 0.3, 1.0, -0.05, door);
+box(0.9, 0.05, 0.06, M.wood, 0, DOOR_H + 0.025, 0, door);
+const mat = box(0.9, 0.01, 0.55, std(0x3a3a3a, { roughness: 1 }), -2.2, 0.006, 1.6, scene, { cast: false });
+setInteract(door, { type: 'door', label: 'Entrance door' });
+
+// Potted plants — exactly FOUR stand on the floor (this matters for the puzzle!)
+const leafGeo = new THREE.SphereGeometry(1, 8, 5);   // flattened to 1.8cm thick: 8x5 is visually identical
+function pottedPlant(x, z, s, potMat) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
+  mesh(new THREE.CylinderGeometry(0.17 * s, 0.12 * s, 0.34 * s, 20), potMat, 0, 0.17 * s, 0, g);
+  mesh(new THREE.CylinderGeometry(0.155 * s, 0.155 * s, 0.01, 20), M.soil, 0, 0.34 * s + 0.003, 0, g, { cast: false });
+  mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.5 * s, 6), M.trunk, 0, 0.55 * s, 0, g);
+  const n = 20;
+  for (let i = 0; i < n; i++) {
+    const pivot = new THREE.Group();
+    pivot.position.y = 0.34 * s + rand(0, 0.45) * s;
+    pivot.rotation.y = (i / n) * Math.PI * 2 * 3.1 + rand(-0.3, 0.3);
+    g.add(pivot);
+    const stem = new THREE.Group(); stem.rotation.x = rand(0.35, 1.15); pivot.add(stem);
+    const len = rand(0.2, 0.34) * s;
+    const leaf = mesh(leafGeo, M.leaves[(Math.random() * M.leaves.length) | 0], 0, len / 2, 0, stem);
+    leaf.scale.set(0.075 * s, len / 2, 0.018 * s);
+  }
+  setInteract(g, { type: 'plant', label: 'Potted plant' });
+  addCollider(x - 0.2 * s, x + 0.2 * s, z - 0.2 * s, z + 0.2 * s);
+  return g;
+}
+pottedPlant(-2.6, -1.6, 1.25, M.potWhite);
+pottedPlant(2.6, -1.6, 1.1, M.pot);
+pottedPlant(2.62, 1.58, 1.0, M.potWhite);
+pottedPlant(-2.62, 0.86, 0.9, M.pot);
+
+// Wall art above the sofa? (east of door) — a framed landscape, just decor
+const artTex = canvasTex(256, 170, (g, W, H) => {
+  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#a9d3ee'); gr.addColorStop(0.6, '#f6e6cf'); gr.addColorStop(0.61, '#a9c48a'); gr.addColorStop(1, '#7c9c66');
+  g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#ffe28a'; g.beginPath(); g.arc(200, 40, 18, 0, 7); g.fill();
+});
+box(0.9, 0.62, 0.03, M.dark, 0.9, 1.55, 1.985, scene, { cast: false });
+mesh(new THREE.PlaneGeometry(0.82, 0.54), new THREE.MeshStandardMaterial({ map: artTex }), 0.9, 1.55, 1.968, scene, { cast: false })
+  .rotation.y = Math.PI;
+
+// =====================================================================
+//  Robot companion — built to roughly average human height (~1.68 m)
+//  so it reads as a genuine presence in the room, not a knee-high pet.
+// =====================================================================
+const robot = new THREE.Group(); robot.position.set(1.6, 0, 1.2); scene.add(robot);
+const rb = new THREE.Group(); robot.add(rb);
+mesh(new THREE.CylinderGeometry(0.15, 0.19, 0.08, 20), M.dark, 0, 0.04, 0, rb);          // base / feet
+const TORSO_R = 0.24, TORSO_LEN = 0.58;
+mesh(new THREE.CapsuleGeometry(TORSO_R, TORSO_LEN, 6, 20), M.white, 0, 0.08 + TORSO_LEN / 2 + TORSO_R, 0, rb);   // torso
+mesh(new THREE.TorusGeometry(TORSO_R + 0.01, 0.016, 8, 36), M.orange, 0, 0.56, 0, rb).rotation.x = Math.PI / 2;   // belt
+for (const sx of [-1, 1]) mesh(new THREE.SphereGeometry(0.075, 14, 10), M.skyblue, sx * 0.27, 1.06, 0, rb);       // shoulders
+const chest = mesh(new THREE.CapsuleGeometry(0.11, 0.16, 4, 16), M.skyblue, 0, 0.84, TORSO_R - 0.04, rb);         // pale-blue chest panel
+chest.scale.set(1.15, 1, 0.55);
+mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.12, 16), M.white, 0, 1.2, 0, rb);          // neck
+const rHead = new THREE.Group(); rHead.position.y = 1.413; rb.add(rHead);
+const head = mesh(new THREE.SphereGeometry(0.17, 28, 18), M.white, 0, 0, 0, rHead); head.scale.set(1.18, 0.9, 1);
+const visor = mesh(new THREE.SphereGeometry(0.14, 28, 18), M.visor, 0, 0.005, 0.05, rHead); visor.scale.set(1.15, 0.72, 1);
+const eyeMat = new THREE.MeshBasicMaterial({ color: 0x8ee3ff, toneMapped: false });
+const eyes = [];
+for (const sx of [-1, 1]) {
+  const e = mesh(new THREE.SphereGeometry(0.022, 12, 8), eyeMat, sx * 0.052, 0.01, 0.182, rHead, { cast: false });
+  e.scale.set(1, 1.3, 0.5); eyes.push(e);
+}
+for (const sx of [-1, 1]) mesh(new THREE.SphereGeometry(0.03, 12, 8), M.orange, sx * 0.12, -0.05, 0.135, rHead, { cast: false }).scale.set(1, 0.7, 0.4);  // rosy cheeks
+const cap = mesh(new THREE.SphereGeometry(0.178, 28, 14, 0, Math.PI * 2, 0, Math.PI * 0.46), M.skyblue, 0, 0.01, -0.02, rHead);  // little cap
+cap.scale.set(1.2, 0.92, 1.03); cap.rotation.x = -0.12;
+const brim = mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.012, 24, 1, false, -Math.PI * 0.5, Math.PI), M.skyblue, 0, 0.08, 0.1, rHead);
+brim.scale.set(1.25, 1, 1); brim.rotation.x = -0.18;
+mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.1, 6), M.alu, 0, 0.21, 0, rHead);
+mesh(new THREE.SphereGeometry(0.022, 10, 8), M.orange, 0, 0.265, 0, rHead);
+setInteract(robot, { type: 'robot', label: 'Talk to the robot' });
+
+// =====================================================================
+//  Garden
+// =====================================================================
+const GX0 = -9, GX1 = 9, GZ0 = -15, GZ1 = -2.3;
+const ground = mesh(new THREE.PlaneGeometry(240, 240), new THREE.MeshStandardMaterial({ map: grassGroundTex, roughness: 1 }),
+  0, -0.02, 0, scene, { cast: false, ray: false });
+ground.rotation.x = -Math.PI / 2;
+// invisible touchable lawn surface
+const lawn = new THREE.Mesh(new THREE.PlaneGeometry(GX1 - GX0, GZ1 - GZ0 + 0.1), new THREE.MeshBasicMaterial());
+lawn.rotation.x = -Math.PI / 2;
+lawn.position.set(0, 0, (GZ0 + GZ1) / 2 - 0.05);
+lawn.visible = false;
+scene.add(lawn);
+setInteract(lawn, { type: 'grass', label: () => isOutside() ? 'Touch the grass' : 'Step outside to touch the grass' });
+
+// Stepping stones
+const stones = [[0.8, -2.75], [0.6, -3.45], [0.9, -4.15], [0.65, -4.85], [0.85, -5.55]];
+for (const [x, z] of stones) {
+  const s = mesh(new THREE.CylinderGeometry(0.26, 0.28, 0.05, 18), M.stone, x, 0.0, z, scene, { ray: false });
+  s.scale.set(1, 1, rand(0.8, 1));
+}
+
+// Grass blades (instanced, wind + player push shader)
+const grassChunks = [];
+{
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, -0.32, 0.5, 0, 0.32, 0.5, 0, 0, 1, 0], 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 0.5, 1, 0.5, 0.5, 1], 2));
+  geo.setIndex([0, 1, 2, 2, 1, 3, 2, 3, 4]);
+  var grassMat = new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    uniforms: { uTime: { value: 0 }, uPlayer: { value: new THREE.Vector3() }, uFog: { value: FOG_COLOR } },
+    vertexShader: `
+      uniform float uTime;
+      uniform vec3 uPlayer;
+      varying float vH;
+      varying vec3 vCol;
+      varying vec3 vWorld;
+      void main() {
+        vH = uv.y;
+        vec4 wp = modelMatrix * instanceMatrix * vec4(position, 1.0);
+        float h = uv.y * uv.y;
+        float w = sin(uTime * 1.7 + wp.x * 0.55 + wp.z * 0.35) + 0.5 * sin(uTime * 2.9 + wp.x * 1.3 + wp.z);
+        wp.x += w * 0.045 * h;
+        wp.z += cos(uTime * 1.3 + wp.x * 0.4) * 0.03 * h;
+        vec2 d = wp.xz - uPlayer.xz;
+        float dist = length(d);
+        float push = (1.0 - smoothstep(0.0, 0.6, dist)) * h;
+        wp.xz += (d / max(dist, 0.001)) * push * 0.22;
+        wp.y -= push * 0.08;
+        vCol = vec3(1.0);
+        #ifdef USE_INSTANCING_COLOR
+          vCol = instanceColor;
+        #endif
+        vWorld = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: `
+      uniform vec3 uFog;
+      varying float vH;
+      varying vec3 vCol;
+      varying vec3 vWorld;
+      void main() {
+        // sage → olive-yellow, sun-bleached tips
+        vec3 base = mix(vec3(0.11, 0.2, 0.09), vec3(0.36, 0.5, 0.21), vH);
+        base = mix(base, base * vec3(1.15, 1.08, 0.78), smoothstep(0.7, 1.0, vH) * 0.5);
+        vec3 col = base * vCol * 1.05;
+        float d = length(vWorld - cameraPosition);
+        col = mix(col, uFog, smoothstep(28.0, 90.0, d));
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`
+  });
+  const COUNT = 70000;
+  // Split into 3 m chunks: each chunk is frustum-culled on its own (looking at the room
+  // walls now costs zero grass), and far chunks draw only a subset of their blades.
+  // Blades are generated in random order, so drawing the first N is a uniform thinning.
+  const CH = 3, cols = Math.ceil((GX1 - GX0) / CH), rowsN = Math.ceil((GZ1 - GZ0) / CH);
+  const buckets = Array.from({ length: cols * rowsN }, () => []);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3(), c = new THREE.Color();
+  let n = 0, guard = 0;
+  while (n < COUNT && guard++ < COUNT * 3) {
+    const x = rand(GX0 + 0.1, GX1 - 0.1), z = rand(GZ0 + 0.1, GZ1 + 0.05);
+    if (stones.some(([sx, sz]) => (x - sx) ** 2 + (z - sz) ** 2 < 0.07)) continue;
+    p.set(x, -0.02, z);
+    e.set(rand(-0.25, 0.25), rand(0, Math.PI), rand(-0.25, 0.25));
+    q.setFromEuler(e);
+    s.set(rand(0.03, 0.055), rand(0.14, 0.34), 1);
+    c.setHSL(rand(0.19, 0.27), rand(0.32, 0.5), rand(0.37, 0.48));
+    const b = rand(0.75, 1.2) * 2;
+    const ci = Math.min(cols - 1, Math.floor((x - GX0) / CH)), ri = Math.min(rowsN - 1, Math.floor((z - GZ0) / CH));
+    buckets[ri * cols + ci].push([m4.compose(p, q, s).clone(), c.r * b, c.g * b, c.b * b]);
+    n++;
+  }
+  buckets.forEach((list, i) => {
+    if (!list.length) return;
+    const im = new THREE.InstancedMesh(geo, grassMat, list.length);
+    list.forEach(([mat, r, g, bb], k) => { im.setMatrixAt(k, mat); im.setColorAt(k, c.setRGB(r, g, bb)); });
+    const cx = GX0 + (i % cols + 0.5) * CH, cz = GZ0 + (Math.floor(i / cols) + 0.5) * CH;
+    // bounds padded for wind sway + player push so chunks never pop at the screen edge
+    im.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx, 0.2, cz), CH * 0.7071 + 0.6);
+    im.userData.full = list.length;
+    im.userData.center = new THREE.Vector2(cx, cz);
+    scene.add(im);
+    grassChunks.push(im);
+  });
+}
+
+// Picket fence around the garden
+{
+  const pickets = [];
+  const rails = [];
+  function fenceLine(x0, z0, x1, z1) {
+    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.floor(len / 0.16), ang = Math.atan2(x1 - x0, z1 - z0);
+    for (let i = 0; i <= n; i++) pickets.push([lerp(x0, x1, i / n), lerp(z0, z1, i / n), ang]);
+    rails.push([(x0 + x1) / 2, (z0 + z1) / 2, len, ang]);
+    addCollider(Math.min(x0, x1) - 0.1, Math.max(x0, x1) + 0.1, Math.min(z0, z1) - 0.1, Math.max(z0, z1) + 0.1);
+  }
+  fenceLine(GX0, GZ0, GX1, GZ0);
+  fenceLine(GX0, GZ0, GX0, -2.3);
+  fenceLine(GX1, GZ0, GX1, -2.3);
+  fenceLine(GX0, -2.3, -3.2, -2.3);
+  fenceLine(3.2, -2.3, GX1, -2.3);
+  const pg = new THREE.BoxGeometry(0.07, 1.0, 0.025);
+  pg.translate(0, 0.5, 0);
+  const im = new THREE.InstancedMesh(pg, M.fence, pickets.length);
+  const m4 = new THREE.Matrix4();
+  pickets.forEach(([x, z, a], i) => { m4.makeRotationY(a + Math.PI / 2); m4.setPosition(x, -0.02, z); im.setMatrixAt(i, m4); });
+  im.castShadow = im.receiveShadow = true;
+  scene.add(im);
+  for (const [x, z, len, a] of rails) for (const y of [0.3, 0.75]) {
+    const r = box(0.03, 0.07, len, M.fence, x, y, z, scene, { ray: false });
+    r.rotation.y = a;
+  }
+}
+
+// Trees, bushes, flowers, bench, bird bath
+const foliageGeo = new THREE.IcosahedronGeometry(1, 1);
+const foliageMats = [std(0x93b47a, { flatShading: true }), std(0x7ea068, { flatShading: true }), std(0xaac48c, { flatShading: true })];
+function tree(x, z, s) {
+  const near = Math.abs(x) < 12 && z > -18;   // only garden trees fall inside the shadow frustum
+  mesh(new THREE.CylinderGeometry(0.1 * s, 0.17 * s, 2.2 * s, near ? 8 : 6, 1, !near), M.trunk, x, 1.1 * s, z, scene, { ray: false, cast: near, receive: near });
+  for (let i = 0; i < 6; i++) {
+    const f = mesh(foliageGeo, foliageMats[i % 3], x + rand(-0.7, 0.7) * s, (2.3 + rand(0, 1.2)) * s, z + rand(-0.7, 0.7) * s, scene, { ray: false, cast: near, receive: near });
+    f.scale.setScalar(rand(0.7, 1.05) * s);
+    f.rotation.set(rand(0, 3), rand(0, 3), 0);
+  }
+}
+function bush(x, z, s) {
+  for (let i = 0; i < 3; i++) {
+    const b = mesh(foliageGeo, foliageMats[i % 3], x + rand(-0.3, 0.3) * s, 0.3 * s, z + rand(-0.3, 0.3) * s, scene, { ray: false });
+    b.scale.set(rand(0.4, 0.55) * s, rand(0.35, 0.5) * s, rand(0.4, 0.55) * s);
+  }
+}
+[[-7.3, -4.6, 1.2], [7.4, -4.2, 1.1], [-6.8, -12.6, 1.35], [6.6, -12.4, 1.25], [-2.5, -13.8, 1.0], [3.2, -14.0, 1.1]]
+  .forEach(([x, z, s]) => { tree(x, z, s); addCollider(x - 0.25, x + 0.25, z - 0.25, z + 0.25); });
+for (let i = 0; i < 34; i++) {
+  const a = rand(0, Math.PI * 2), r = rand(20, 45);
+  const x = Math.cos(a) * r, z = Math.sin(a) * r - 8;
+  if (z > 4) continue;
+  tree(x, z, rand(1.1, 1.9));
+}
+[[-2.5, -2.75], [2.5, -2.75], [-8.4, -8.5], [8.4, -8.0], [-4.5, -14.4], [5, -14.4], [-8.3, -3.2], [8.3, -3.2]].forEach(([x, z]) => bush(x, z, rand(0.9, 1.3)));
+{
+  const flowerCols = [0xf49ab8, 0xf9dc8e, 0xfff7ec, 0xcdb0f2, 0xf7b98e];
+  const beds = [];
+  for (let i = 0; i < 260; i++) {
+    const side = i % 3;
+    if (side === 0) beds.push([rand(-8.6, 8.6), rand(-14.8, -14.2)]);
+    else if (side === 1) beds.push([rand(-8.8, -8.2), rand(-14, -3)]);
+    else beds.push([rand(8.2, 8.8), rand(-14, -3)]);
+  }
+  const fg = new THREE.IcosahedronGeometry(0.04, 1);   // 4cm blossoms: 80 tris instead of 96-tri UV spheres, rounder silhouette
+  const im = new THREE.InstancedMesh(fg, std(0xffffff, { roughness: 0.6 }), beds.length);
+  const m4 = new THREE.Matrix4(), c = new THREE.Color();
+  beds.forEach(([x, z], i) => { m4.makeTranslation(x, rand(0.2, 0.34), z); im.setMatrixAt(i, m4); im.setColorAt(i, c.set(flowerCols[i % flowerCols.length])); });
+  scene.add(im);
+}
+{ // bench
+  const b = new THREE.Group(); b.position.set(-5.8, 0, -9); b.rotation.y = Math.PI / 2; scene.add(b);
+  for (let i = 0; i < 4; i++) box(1.5, 0.03, 0.09, M.woodLight, 0, 0.45, -0.16 + i * 0.105, b, { ray: false });
+  for (let i = 0; i < 3; i++) box(1.5, 0.08, 0.025, M.woodLight, 0, 0.62 + i * 0.12, -0.24, b, { ray: false }).rotation.x = -0.15;
+  for (const x of [-0.65, 0.65]) { box(0.05, 0.45, 0.4, M.dark, x, 0.225, 0, b, { ray: false }); box(0.05, 0.4, 0.05, M.dark, x, 0.65, -0.24, b, { ray: false }); }
+  addCollider(-6.1, -5.5, -9.8, -8.2);
+}
+{ // bird bath
+  mesh(new THREE.CylinderGeometry(0.08, 0.14, 0.8, 12), M.stone, 4.2, 0.4, -9.2, scene, { ray: false });
+  mesh(new THREE.CylinderGeometry(0.38, 0.22, 0.12, 20), M.stone, 4.2, 0.84, -9.2, scene, { ray: false });
+  mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.01, 20), std(0x6fa8d6, { roughness: 0.05, metalness: 0.3 }), 4.2, 0.895, -9.2, scene, { ray: false, cast: false });
+  addCollider(3.85, 4.55, -9.55, -8.85);
+}
+// Butterflies
+const butterflies = [];
+for (let i = 0; i < 5; i++) {
+  const g = new THREE.Group();
+  const wm = new THREE.MeshBasicMaterial({ color: [0xffb347, 0xfff27a, 0x9ad0ff, 0xff8fb1, 0xffffff][i], side: THREE.DoubleSide });
+  const wg = new THREE.PlaneGeometry(0.07, 0.06); wg.translate(0.035, 0, 0);
+  const l = new THREE.Mesh(wg, wm), r = new THREE.Mesh(wg, wm);
+  l.rotation.x = r.rotation.x = -Math.PI / 2; r.scale.x = -1;
+  const lp = new THREE.Group(), rp = new THREE.Group(); lp.add(l); rp.add(r); g.add(lp, rp);
+  scene.add(g);
+  butterflies.push({ g, lp, rp, cx: rand(-6, 6), cz: rand(-12, -5), ph: rand(0, 10), sp: rand(0.3, 0.6) });
+}
+
+// =====================================================================
+//  Game state
+// =====================================================================
+let state = 'start';          // start | playing | paused | touching | won
+let unlocked = false;
+let winState = 'closed';      // closed | opening | open
+let winT = 0;
+let entered = '';
+let kpState = 'input';        // input | denied | short | granted
+let kpTimer = 0;
+let failCount = 0;
+let startTime = 0;
+let hovered = null;
+let fallbackLook = false, mouseDown = false;
+const clues = { diary: false, sofa: false, hint: false, birthday: false };
+let robotLine = 0;
+const player = { x: -2.2, z: 1.45, yaw: -0.45, pitch: -0.05, eye: EYE, bob: 0 };
+const keys = {};
+const isOutside = () => player.z < -2.3;
+
+// =====================================================================
+//  UI
+// =====================================================================
+const $ = id => document.getElementById(id);
+let toastTimer = 0;
+function toast(html, ms = 5000) {
+  $('toast').innerHTML = html;
+  $('toast').classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('toast').classList.remove('show'), ms);
+}
+function setObjective(html) { $('objText').innerHTML = html; }
+function addClue(id, html) {
+  if (clues[id]) return;
+  clues[id] = true;
+  const list = $('clueList');
+  const empty = list.querySelector('.empty');
+  if (empty) empty.remove();
+  const li = document.createElement('li');
+  li.innerHTML = html;
+  li.className = 'new';
+  list.appendChild(li);
+  const n = Object.values(clues).filter(Boolean).length;
+  $('clueCount').textContent = `${n} note${n === 1 ? '' : 's'}`;
+  tone(880, 0.12, 'sine', 0.08); tone(1320, 0.18, 'sine', 0.06, 0.1);
+}
+
+// =====================================================================
+//  AudioManager — one AudioContext, separate music / sfx buses (voice volume
+//  is applied to speech synthesis), a shared reverb, and HRTF panners for
+//  positional house sounds. Every sound is synthesised at runtime: zero audio
+//  files to download, nothing to decode, nothing to lazy-load.
+// =====================================================================
+const AUDIO_KEY = 'ttg.audio.v1';
+const audio = {
+  ctx: null, master: null, music: null, sfx: null, reverb: null, noiseBuf: null, brownBuf: null,
+  vol: Object.assign({ music: 0.55, sfx: 0.8, voice: 0.9 }, (() => { try { return JSON.parse(localStorage.getItem(AUDIO_KEY)) || {}; } catch (e) { return {}; } })()),
+  muted: false,
+  init() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {}); return true; }
+    try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return false; }
+    const c = this.ctx;
+    const comp = c.createDynamicsCompressor();          // soft limiter: overlapping cues never clip
+    comp.threshold.value = -12; comp.knee.value = 12; comp.ratio.value = 3;
+    comp.connect(c.destination);
+    this.master = c.createGain(); this.master.gain.value = 0.9; this.master.connect(comp);
+    this.music = c.createGain(); this.sfx = c.createGain();
+    this.music.connect(this.master); this.sfx.connect(this.master);
+    // procedural impulse response (2.6 s, stereo, cubic decay) — the "house" reverb
+    const len = Math.floor(c.sampleRate * 2.6), ir = c.createBuffer(2, len, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3; }
+    this.reverb = c.createConvolver(); this.reverb.buffer = ir;
+    const wet = c.createGain(); wet.gain.value = 0.55;
+    this.reverb.connect(wet).connect(this.master);
+    // shared noise sources: 2 s white, 4 s brown (reused by every noise cue)
+    const n = c.sampleRate * 2; this.noiseBuf = c.createBuffer(1, n, c.sampleRate);
+    { const d = this.noiseBuf.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; }
+    const nb = c.sampleRate * 4; this.brownBuf = c.createBuffer(1, nb, c.sampleRate);
+    { const d = this.brownBuf.getChannelData(0); let last = 0; for (let i = 0; i < nb; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; } }
+    this.applyVolumes();
+    music.start();
+    ambience.start();
+    return true;
+  },
+  applyVolumes() {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    this.music.gain.setTargetAtTime(this.muted ? 0 : this.vol.music * 0.8, now, 0.15);
+    this.sfx.gain.setTargetAtTime(this.vol.sfx, now, 0.05);
+  },
+  setVolume(k, v) {
+    this.vol[k] = v;
+    try { localStorage.setItem(AUDIO_KEY, JSON.stringify(this.vol)); } catch (e) { }
+    this.applyVolumes();
+  },
+  panner(x, y, z) {
+    const p = this.ctx.createPanner();
+    p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = 1.2; p.rolloffFactor = 1.1; p.maxDistance = 60;
+    if (p.positionX) { p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z; } else p.setPosition(x, y, z);
+    return p;
+  },
+  // destination for a one-shot: positional if a position is given
+  out(pos) {
+    if (!pos) return this.sfx;
+    const p = this.panner(pos.x, pos.y, pos.z);
+    p.connect(this.sfx);
+    return p;
+  },
+};
+const _lFwd = new THREE.Vector3();
+function updateListener() {
+  if (!audio.ctx) return;
+  const L = audio.ctx.listener, p = camera.position;
+  camera.getWorldDirection(_lFwd);
+  if (L.positionX) {
+    L.positionX.value = p.x; L.positionY.value = p.y; L.positionZ.value = p.z;
+    L.forwardX.value = _lFwd.x; L.forwardY.value = _lFwd.y; L.forwardZ.value = _lFwd.z;
+    L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0;
+  } else { L.setPosition(p.x, p.y, p.z); L.setOrientation(_lFwd.x, _lFwd.y, _lFwd.z, 0, 1, 0); }
+}
+// tone(freq, dur, type, vol, delay, pos?, glideTo?) — signature-compatible with the old synth
+function tone(freq, dur, type = 'sine', vol = 0.12, delay = 0, pos = null, freq2 = 0) {
+  if (!audio.init()) return;
+  try {
+    const c = audio.ctx, t0 = c.currentTime + delay;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (freq2) o.frequency.exponentialRampToValueAtTime(freq2, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(audio.out(pos));
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  } catch (e) { /* audio unavailable */ }
+}
+// filtered-noise one-shot: swishes, creaks, pours, clatter
+function noiseBurst({ dur = 0.3, vol = 0.05, type = 'bandpass', freq = 1000, freq2 = 0, q = 1, attack = 0.01, delay = 0, pos = null, rev = 0, brown = false } = {}) {
+  if (!audio.init()) return;
+  try {
+    const c = audio.ctx, t0 = c.currentTime + delay;
+    const src = c.createBufferSource(); src.buffer = brown ? audio.brownBuf : audio.noiseBuf; src.loop = true;
+    const f = c.createBiquadFilter(); f.type = type; f.Q.value = q;
+    f.frequency.setValueAtTime(freq, t0);
+    if (freq2) f.frequency.exponentialRampToValueAtTime(freq2, t0 + dur);
+    const g = c.createGain();
+    const hold = Math.max(attack, dur * 0.6);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + attack);
+    g.gain.setValueAtTime(vol, t0 + hold);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f).connect(g).connect(audio.out(pos));
+    if (rev) { const s = c.createGain(); s.gain.value = rev; g.connect(s).connect(audio.reverb); }
+    src.start(t0, Math.random() * 1.5); src.stop(t0 + dur + 0.05);
+  } catch (e) { }
+}
+// low mechanical hum (lift / microwave / oven)
+function hum(freq, dur, vol, pos, delay = 0, cutoff = 260) {
+  if (!audio.init()) return;
+  const c = audio.ctx, t0 = c.currentTime + delay;
+  const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = freq;
+  const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.25);
+  g.gain.setValueAtTime(vol, t0 + dur - 0.3); g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(f).connect(g).connect(audio.out(pos));
+  o.start(t0); o.stop(t0 + dur + 0.05);
+}
+function slideSound() {
+  noiseBurst({ dur: 1.6, vol: 0.2, type: 'lowpass', freq: 520, attack: 0.5, pos: { x: 0, y: 1, z: -2.1 } });
+  noiseBurst({ dur: 1.4, vol: 0.02, type: 'bandpass', freq: 2400, q: 3, attack: 0.3, pos: { x: 0.4, y: 0.1, z: -2.1 } });   // track rumble
+}
+
+// =====================================================================
+//  Smart panel + keypad screens
+// =====================================================================
+let hvacOverride = false;
+function drawPanel() {
+  const g = panelTex.userData.ctx, W = 1024, H = 580;
+  const gr = g.createLinearGradient(0, 0, W, H); gr.addColorStop(0, '#0f1a2b'); gr.addColorStop(1, '#060a12');
+  g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#e8eef8'; g.font = 'bold 60px Segoe UI, Helvetica, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.fillText('HOME', 60, 100);
+  g.fillStyle = '#7f8ea3'; g.font = '32px Segoe UI, Helvetica, sans-serif'; g.textAlign = 'right';
+  g.fillText('Sat 10:42', W - 60, 96);
+  if (hvacOverride) { g.fillStyle = '#ff7a6b'; g.font = 'bold 22px Segoe UI, Helvetica, sans-serif'; g.fillText('HVAC · MANUAL OVERRIDE (IVY)', W - 60, 130); }
+  const rows = [
+    ['Temperature', '21°C', '#e8eef8'],
+    ['Lighting', 'Warm', '#ffd08a'],
+    ['Window', unlocked ? 'UNLOCKED' : 'LOCKED', unlocked ? '#5fe07a' : '#ff6b6b'],
+    ['Security', 'ACTIVE', '#6bb8ff'],
+  ];
+  rows.forEach(([k, v, c], i) => {
+    const y = 190 + i * 82;
+    g.fillStyle = 'rgba(255,255,255,.07)'; g.fillRect(60, y + 26, W - 120, 2);
+    g.textAlign = 'left'; g.fillStyle = '#b8c4d6'; g.font = '44px Segoe UI, Helvetica, sans-serif'; g.fillText(k, 60, y);
+    g.textAlign = 'right'; g.fillStyle = c; g.font = 'bold 44px Segoe UI, Helvetica, sans-serif'; g.fillText(v, W - 60, y);
+  });
+  g.textAlign = 'left'; g.fillStyle = '#9fb3cc'; g.font = 'italic 28px Segoe UI, Helvetica, sans-serif';
+  g.fillText('Security: garden door locked by IVY.', 60, H - 36);
+  panelTex.needsUpdate = true;
+}
+function drawKeypad() {
+  const g = kpTex.userData.ctx, W = 512, H = 192;
+  const bg = { denied: '#3b0c0c', granted: '#0c3b19', short: '#3a2d08' }[kpState] || '#07131c';
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const top = { denied: 'ACCESS DENIED', granted: 'UNLOCKED', short: 'ENTER 4 DIGITS' }[kpState] || 'LOCKED · ENTER PIN';
+  g.fillStyle = { denied: '#ff6b6b', granted: '#6bff8e', short: '#ffd36b' }[kpState] || '#7fb8d6';
+  g.font = 'bold 36px monospace';
+  g.fillText(top, W / 2, 44);
+  g.font = 'bold 84px monospace';
+  g.fillStyle = kpState === 'granted' ? '#6bff8e' : '#e6f4ff';
+  const shown = kpState === 'granted' ? CODE : entered;
+  let s = '';
+  for (let i = 0; i < 4; i++) s += (shown[i] || '_') + (i < 3 ? ' ' : '');
+  g.fillText(s, W / 2, 126);
+  kpTex.needsUpdate = true;
+}
+drawPanel();
+drawKeypad();
+
+// =====================================================================
+//  Keypad logic
+// =====================================================================
+function pressKey(k) {
+  const o = keyObjs[k];
+  if (o) { o.t = 0.18; o.mat.emissive.set(k === 'C' ? 0xff5555 : k === 'OK' ? 0x55ff77 : 0x66ccff); }
+  if (robotCtl.over) return;
+  if (unlocked) { tone(1200, 0.06, 'sine', 0.05); return; }
+  if (kpState !== 'input') { kpState = 'input'; kpTimer = 0; }
+  if (k === 'C') { entered = ''; tone(520, 0.08, 'square', 0.05); }
+  else if (k === 'OK') {
+    if (entered.length < 4) { kpState = 'short'; kpTimer = 1.1; tone(300, 0.15, 'square', 0.06); }
+    else if (entered === CODE) { unlock(); }
+    else {
+      failCount++;
+      kpState = 'denied'; kpTimer = 1.3; entered = '';
+      kpLedMat.color.set(0xff0000);
+      tone(160, 0.18, 'square', 0.08, 0, KEYPAD_POS); tone(120, 0.25, 'square', 0.08, 0.2, KEYPAD_POS);
+      toast('❌ ACCESS DENIED.', 1800);
+      robotCtl.event('wrong_code');                  // [event: wrong_code] → anger +1
+    }
+  } else if (entered.length < 4) { entered += k; tone(900 + Number(k) * 40, 0.07, 'sine', 0.07); }
+  else { tone(300, 0.08, 'square', 0.04); }
+  drawKeypad();
+}
+function unlock() {
+  unlocked = true;
+  kpState = 'granted'; entered = '';
+  kpLedMat.color.set(0x22ff55);
+  lockLightMat.color.set(0x22ff55);
+  drawKeypad(); drawPanel();
+  tone(660, 0.15, 'sine', 0.1); tone(880, 0.15, 'sine', 0.1, 0.12); tone(1320, 0.35, 'sine', 0.1, 0.24);
+  toast('✅ <b>Click.</b> The lock on the garden door disengages.', 4000);
+  robotCtl.event('door_opened');                   // [event: door_opened]
+}
+function nearKeypad() {
+  if (hovered && (hovered.type === 'key' || hovered.type === 'keypad')) return true;
+  return Math.hypot(player.x - KEYPAD_POS.x, player.z - KEYPAD_POS.z) < 1.5;
+}
+
+// =====================================================================
+//  Interactions
+// =====================================================================
+const plantLines = [
+  'A leafy potted plant. At least <i>something</i> in here gets sunlight.',
+  'The plant looks healthier than you do.',
+  'A potted plant, standing proudly on the floor.',
+];
+// =====================================================================
+//  Ivy — robot voice + chat
+// =====================================================================
+const stripHtml = html => html.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '').replace(/[🤖🛋️📖📺🪴🚪✅❌🔒🌿☕📚]/g, '').replace(/\s+/g, ' ').trim();
+let ivyVoice = null;
+function pickVoice() {
+  if (!('speechSynthesis' in window)) return null;
+  const voices = speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  // soft, sweet feminine voices first; then any English voice; then whatever we have
+  const prefer = /samantha|karen|moira|tessa|fiona|victoria|allison|ava|susan|zira|jenny|aria|google uk english female|google us english|female|woman|girl/i;
+  return voices.find(v => prefer.test(v.name) && /^en/i.test(v.lang))
+      || voices.find(v => prefer.test(v.name))
+      || voices.find(v => /^en/i.test(v.lang))
+      || voices[0];
+}
+if ('speechSynthesis' in window) {
+  ivyVoice = pickVoice();
+  speechSynthesis.addEventListener('voiceschanged', () => { ivyVoice = pickVoice(); });
+}
+// RobotVoice — every line Ivy says goes through a queue so lines never talk over
+// each other. Pitch and pace follow her mood: light and sweet when calm, slower
+// and lower (never shouted) as she becomes possessive. A tiny two-note chime
+// from wherever she stands precedes each line, so she sounds a little artificial.
+function speak(html, onDone) {
+  if (!('speechSynthesis' in window)) return false;
+  const text = stripHtml(html);
+  if (!text) return false;
+  const u = new SpeechSynthesisUtterance(text);
+  if (ivyVoice) u.voice = ivyVoice;
+  const m = Math.min(1, robotMoodT() / 3);
+  u.pitch = 1.35 - 0.25 * m;
+  u.rate = 0.96 - 0.16 * m;
+  u.volume = audio.vol.voice;
+  u.onend = u.onerror = () => onDone && onDone();
+  speechSynthesis.speak(u);
+  return true;
+}
+const voice = {
+  queue: [], cur: null, lastSpoke: -1e9, timer: 0,
+  say(html, { ms = 5000, priority = false, gap = 0.45 } = {}) {
+    if (priority) {
+      this.queue.length = 0;
+      if (this.cur) { this.cur = null; clearTimeout(this.timer); }
+      if ('speechSynthesis' in window) speechSynthesis.cancel();
+    }
+    this.queue.push({ html, ms, gap });
+    this.pump();
+  },
+  get busy() { return !!this.cur || this.queue.length > 0; },
+  pump() {
+    if (this.cur || !this.queue.length) return;
+    const it = this.cur = this.queue.shift();
+    this.lastSpoke = playT;
+    chatAppend('robot', it.html);
+    if (!chatOpen) toast('🤖 <b>Ivy:</b> ' + it.html, it.ms);   // the bubble already shows it while chatting
+    const rp = { x: robot.position.x, y: 1.4, z: robot.position.z };
+    tone(1568, 0.12, 'sine', 0.018, 0, rp); tone(2349, 0.16, 'sine', 0.012, 0.07, rp);
+    const done = () => {
+      if (this.cur !== it) return;
+      this.cur = null; clearTimeout(this.timer);
+      this.lastSpoke = playT;
+      setTimeout(() => this.pump(), it.gap * 1000);
+    };
+    // fallback if speech is unavailable / silent: estimated reading time
+    const est = 900 + stripHtml(it.html).length * 65;
+    this.timer = setTimeout(done, est + 2500);
+    setTimeout(() => { if (!speak(it.html, done)) { clearTimeout(this.timer); this.timer = setTimeout(done, est); } }, 140);
+  },
+};
+function chatAppend(who, html) {
+  const log = $('chatLog');
+  const div = document.createElement('div');
+  div.className = 'msg ' + who;
+  div.innerHTML = html;
+  log.appendChild(div);
+  while (log.children.length > 40) log.firstChild.remove();
+  log.scrollTop = log.scrollHeight;
+}
+// Direct responses (chat replies, pressing E on Ivy) cut the queue; ambient lines wait their turn.
+function robotSay(html, ms = 5000, priority = true) {
+  voice.say(html, { ms, priority });
+}
+let chatOpen = false;
+function openChat() {
+  if (chatOpen || (state !== 'playing' && state !== 'chatting')) return;
+  chatOpen = true;
+  state = 'chatting';
+  for (const k in keys) keys[k] = false;
+  $('chat').classList.add('open');
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+  setTimeout(() => $('chatInput').focus(), 0);
+}
+function closeChat() {
+  if (!chatOpen) return;
+  chatOpen = false;
+  $('chat').classList.remove('open');
+  $('chatInput').blur();
+  state = 'playing';
+  // Re-grab the mouse. If the browser refuses (some enforce a cooldown after an
+  // unlock), the player just clicks the world once — see canvas mousedown.
+  if (!fallbackLook && canvas.requestPointerLock) {
+    try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* click to re-lock */ }
+  }
+}
+$('chatForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const text = $('chatInput').value.trim();
+  if (!text) return;
+  $('chatInput').value = '';
+  chatAppend('you', text.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])));
+  const reply = ivyReply(text);
+  setTimeout(() => robotSay(reply.html, 7000), 350);
+  $('chatInput').focus();
+});
+$('chatInput').addEventListener('focus', () => { if (!chatOpen) openChat(); });
+$('chatInput').addEventListener('keydown', e => { if (e.code === 'Escape') { e.preventDefault(); closeChat(); } e.stopPropagation(); });
+
+function interact() {
+  if (state !== 'playing' || !hovered) return;
+  const d = hovered;
+  switch (d.type) {
+    case 'key': pressKey(d.key); break;
+    case 'keypad':
+      toast('The garden door\'s keypad. Aim at a button and press <b>E</b> / click,<br>or just type: <b>0–9</b>, <b>Backspace</b> = Clear, <b>Enter</b> = Enter.', 6000);
+      break;
+    case 'window':
+      if (!unlocked) {
+        tone(180, 0.15, 'square', 0.07);
+        toast('🔒 The glass garden door is locked tight. The keypad is on the wall to its right.', 4000);
+        robotCtl.event('window_attempt');
+      } else if (winState === 'closed') { winState = 'opening'; winT = 0; slideSound(); }
+      break;
+    case 'curtain':
+      if (!robotCtl.freed) {
+        noiseBurst({ dur: 0.3, vol: 0.05, type: 'lowpass', freq: 600, pos: { x: 0, y: 2.4, z: -1.94 } });
+        toast('The curtains are motorised and won\'t budge. Ivy controls them.', 3500);
+        robotCtl.event('window_attempt');
+      }
+      break;
+    case 'panel':
+      toast('📺 <b>HOME</b> — Temperature <b>21°C</b> · Lighting Warm · Garden door <b>' + (unlocked ? 'UNLOCKED' : 'LOCKED') + '</b><br><i>"Security: garden door locked by IVY."</i>'
+        + (environment.cur.tempC > 23.5 ? '<br><span style="color:#ffb49a">It feels a lot hotter than 21°C in here. A small line reads: HVAC · MANUAL OVERRIDE.</span>' : ''), 6000);
+      break;
+    case 'book':
+      toast('📖 The last page of the diary:<br><i>"Ivy changed the garden door code again. She said she picked something about <b>herself</b> — something she\'d never forget, and I\'d never guess. <b>Day first, then month.</b> …She was so proud of it."</i>', 9000);
+      addClue('diary', '<b>Diary:</b> the door code is "something about Ivy herself". <u>Day first, then month</u>.');
+      break;
+    case 'sofa':
+      toast('🛋️ You dig under the cushions… crumbs, a coin, and a folded note:<br><i>"She lights up when you ask about her — her garden, her cooking, the piano. Be sweet. Let her look after you. <b>Never mention the door.</b>"</i>', 8000);
+      addClue('sofa', '<b>Note in the sofa:</b> "Ask about her. Be sweet. Let her look after you. <u>Never mention the door.</u>"');
+      break;
+    case 'robot':
+      tone(700, 0.06, 'square', 0.04); tone(1000, 0.06, 'square', 0.04, 0.08);
+      if (robotCtl.freed) robotSay(robotCtl.endingKind ? '…Go on.' : '…', 3000);
+      else { robotSay(GREET[Math.min(4, robotCtl.anger)], 3500); openChat(); }
+      break;
+    case 'plant': toast('🪴 ' + plantLines[(Math.random() * plantLines.length) | 0], 3000); break;
+    case 'door':
+      tone(150, 0.12, 'square', 0.06);
+      toast('🚪 The kitchen door. Ivy keeps it shut — it only opens for her.', 3500);
+      robotCtl.event('door_attempt');
+      break;
+    case 'shelf':
+      toast('📚 <i>"Romance for Robots"</i>, <i>"Cherry Blossom Season"</i>, <i>"Piano Pieces for Beginners"</i>, <i>"Growing Pansies Indoors"</i>… All Ivy\'s.', 5000);
+      break;
+    case 'cup': toast('☕ Cold coffee from three days ago.', 3000); break;
+    case 'lamp':
+      lampOn = !lampOn;
+      tone(lampOn ? 1200 : 800, 0.04, 'square', 0.04, 0, lampLight.position);
+      break;
+    case 'item': delivery.consume(d); break;
+    case 'grass':
+      if (!isOutside()) { toast('Step outside first.', 2000); break; }
+      startTouch();
+      break;
+  }
+}
+
+// =====================================================================
+//  Touch the grass (ending)
+// =====================================================================
+const hand = new THREE.Group();
+camera.add(hand);
+hand.visible = false;
+box(0.09, 0.03, 0.11, M.skin, 0, 0, 0, hand, { ray: false, cast: false });
+for (let i = 0; i < 4; i++) box(0.018, 0.017, 0.075 - Math.abs(i - 1.5) * 0.008, M.skin, -0.033 + i * 0.022, 0, -0.09, hand, { ray: false, cast: false });
+box(0.02, 0.018, 0.06, M.skin, 0.055, 0, -0.02, hand, { ray: false, cast: false }).rotation.y = -0.6;
+box(0.075, 0.06, 0.32, std(0x3a5a8a), 0, 0.005, 0.21, hand, { ray: false, cast: false });
+hand.rotation.x = -0.35;
+let touchT = 0, touchPitch0 = 0, chimed = false;
+function startTouch() {
+  state = 'touching';
+  touchT = 0; chimed = false; touchPitch0 = player.pitch;
+  $('prompt').style.display = 'none';
+  lastPrompt = null;
+}
+function showWin() {
+  state = 'won';
+  document.exitPointerLock?.();
+  const secs = Math.round((performance.now() - startTime) / 1000);
+  $('winText').innerHTML = robotCtl.endingKind
+    ? 'Ivy let you go. Love means letting someone choose.<br>The sun is warm. Maybe you\'ll come back on April 17th — because you want to.'
+    : 'You got out. The sun is warm and the grass is soft.<br>Behind you, the curtains slowly close again.';
+  $('winStats').innerHTML = `⏱ Time: <b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</b> &nbsp;·&nbsp; 💗 Ivy's trust: <b>${robotCtl.trust}</b> &nbsp;·&nbsp; 😠 Anger: <b>${robotCtl.anger}/5</b> &nbsp;·&nbsp; ❌ Wrong codes: <b>${failCount}</b>`;
+  $('win').classList.remove('hidden');
+  $('hud').style.display = 'none';
+}
+
+// =====================================================================
+//  Input
+// =====================================================================
+const canvas = renderer.domElement;
+function requestPlay() {
+  audio.init();
+  if (canvas.requestPointerLock) {
+    try {
+      const p = canvas.requestPointerLock();
+      if (p && p.catch) p.catch(() => enableFallback());
+    } catch (e) { enableFallback(); }
+  } else enableFallback();
+}
+function enableFallback() {
+  fallbackLook = true;
+  beginPlaying();
+  toast('Pointer lock unavailable — hold the <b>left mouse button</b> and drag to look.', 5000);
+}
+function beginPlaying() {
+  if (!startTime) {
+    startTime = performance.now();
+    setTimeout(() => toast('Day 47 indoors. The curtains are shut. The garden door is locked.<br><b>Get outside and touch some grass.</b> (Look at things and press <b>E</b>.)', 6500), 400);
+    setTimeout(() => robotSay('Good morning~ I made the house nice and cosy for you. Press <b>T</b> if you want to talk to me!', 6000, false), 7500);
+  }
+  state = 'playing';
+  $('start').classList.add('hidden');
+  $('win').classList.add('hidden');
+  $('hud').style.display = 'block';
+}
+$('playBtn').addEventListener('click', e => { e.stopPropagation(); requestPlay(); });
+$('start').addEventListener('click', requestPlay);
+$('wanderBtn').addEventListener('click', () => {
+  player.eye = EYE; player.pitch = -0.2; hand.visible = false;
+  requestPlay();
+  if (fallbackLook) beginPlaying();
+});
+$('againBtn').addEventListener('click', () => location.reload());
+$('goAgain').addEventListener('click', () => location.reload());
+// volume controls (persisted); clicks on them must not start/resume the game
+$('audioCtl').addEventListener('click', e => e.stopPropagation());
+for (const [id, k] of [['volMusic', 'music'], ['volSfx', 'sfx'], ['volVoice', 'voice']]) {
+  const el = $(id); el.value = audio.vol[k];
+  el.addEventListener('input', () => audio.setVolume(k, +el.value));
+}
+
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement === canvas) { if (!chatOpen) beginPlaying(); }
+  else if (state === 'chatting') { /* pointer released on purpose so the player can type */ }
+  else if (state === 'playing' && !fallbackLook) {
+    state = 'paused';
+    $('start').classList.remove('hidden');
+    $('start').querySelector('h1').innerHTML = 'Paused';
+    $('playBtn').textContent = 'Click to resume';
+  }
+});
+document.addEventListener('pointerlockerror', () => { if (state !== 'playing') enableFallback(); });
+
+document.addEventListener('mousemove', e => {
+  const locked = document.pointerLockElement === canvas;
+  if (state !== 'playing') return;
+  if (!locked && !(fallbackLook && mouseDown)) return;
+  player.yaw -= e.movementX * 0.0022;
+  player.pitch = Math.max(-1.45, Math.min(1.45, player.pitch - e.movementY * 0.0022));
+});
+canvas.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  mouseDown = true;
+  if (chatOpen) { closeChat(); return; }      // clicking the world puts the chat away
+  if (state === 'playing' && !fallbackLook && document.pointerLockElement !== canvas) { requestPlay(); return; }
+  if (state === 'playing' && (document.pointerLockElement === canvas || fallbackLook)) interact();
+});
+addEventListener('mouseup', () => { mouseDown = false; });
+
+addEventListener('keydown', e => {
+  if (chatOpen) return;                       // the chat input owns the keyboard while open
+  keys[e.code] = true;
+  if (state !== 'playing') return;
+  if (e.code === 'KeyT' && !e.repeat) { e.preventDefault(); openChat(); return; }
+  if (e.code === 'KeyE' && !e.repeat) interact();
+  if (e.code === 'KeyM' && !e.repeat) { audio.muted = !audio.muted; audio.applyVolumes(); toast(audio.muted ? '🔇 Music muted (M)' : '🔊 Music on', 1500); }
+  if (nearKeypad()) {
+    let k = null;
+    const m = e.code.match(/^(?:Digit|Numpad)(\d)$/);
+    if (m) k = m[1];
+    else if (e.code === 'Backspace' || e.code === 'Delete' || e.code === 'KeyC') k = 'C';
+    else if (e.code === 'Enter' || e.code === 'NumpadEnter') k = 'OK';
+    if (k && !e.repeat) { e.preventDefault(); pressKey(k); }
+  }
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+// =====================================================================
+//  Update loop
+// =====================================================================
+const raycaster = new THREE.Raycaster();
+const hitBuf = [];
+let lastPrompt = null;
+const CENTER = new THREE.Vector2(0, 0);
+const fwd = new THREE.Vector3(), right = new THREE.Vector3(), mv = new THREE.Vector3();
+
+function updatePlayer(dt) {
+  fwd.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+  right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+  mv.set(0, 0, 0);
+  if (keys.KeyW || keys.ArrowUp) mv.add(fwd);
+  if (keys.KeyS || keys.ArrowDown) mv.sub(fwd);
+  if (keys.KeyD || keys.ArrowRight) mv.add(right);
+  if (keys.KeyA || keys.ArrowLeft) mv.sub(right);
+  const moving = mv.lengthSq() > 0;
+  if (moving) {
+    mv.normalize().multiplyScalar((keys.ShiftLeft || keys.ShiftRight ? 4.6 : 2.6) * dt);
+    const nx = player.x + mv.x;
+    if (!blocked(nx, player.z, PLAYER_R)) player.x = nx;
+    const nz = player.z + mv.z;
+    if (!blocked(player.x, nz, PLAYER_R)) player.z = nz;
+    player.bob += dt * (keys.ShiftLeft || keys.ShiftRight ? 13 : 9);
+  }
+}
+
+function updateHover() {
+  raycaster.setFromCamera(CENTER, camera);
+  raycaster.far = REACH;
+  hitBuf.length = 0;
+  raycaster.intersectObjects(rayTargets, false, hitBuf);
+  hovered = hitBuf.length ? (hitBuf[0].object.userData.interact || null) : null;
+  let html = '';
+  if (hovered && state === 'playing') {
+    let label = typeof hovered.label === 'function' ? hovered.label() : hovered.label;
+    if (hovered.type === 'key') label = `Press <b>${KEY_TEXT[hovered.key] ? (hovered.key === 'C' ? 'Clear' : 'Enter') : hovered.key}</b><small>(or type on keyboard)</small>`;
+    html = `<kbd>E</kbd>${label}`;
+  }
+  if (html === lastPrompt) return;           // rewriting innerHTML every frame forced layout and caused hitches
+  lastPrompt = html;
+  const pr = $('prompt');
+  if (html) pr.innerHTML = html;
+  pr.style.display = html ? 'block' : 'none';
+  $('crosshair').classList.toggle('active', !!html);
+}
+
+function updateWindow(dt) {
+  if (winState !== 'opening') return;
+  winT = Math.min(1, winT + dt / 1.6);
+  slidePanel.position.x = lerp(SLIDE_CLOSED_X, SLIDE_OPEN_X, smooth(winT));
+  if (winT >= 1) {
+    winState = 'open';
+    winCollider.maxX = SLIDE_OPEN_X + 0.78;      // only the stacked panels still block
+    setObjective('The garden door is open. Walk out and <b>touch the grass</b> (look down at it and press <b>E</b>).');
+  }
+}
+
+let blinkT = 2;
+function robotControl(dt) {   // scripted behaviour: returns true if it moved Ivy this frame
+  if (state === 'dying' || state === 'dead') {
+    robot.visible = true;
+    const dx = player.x - robot.position.x, dz = player.z - robot.position.z, d = Math.hypot(dx, dz);
+    if (d > 0.55) { const st = Math.min(d - 0.55, 2.4 * dt); robot.position.x += dx / d * st; robot.position.z += dz / d * st; }
+    faceYaw(robot, Math.atan2(dx, dz), dt, 10);
+    return true;
+  }
+  if (delivery.job) { delivery.update(dt); return true; }
+  if (robotCtl.freed) { faceYaw(robot, Math.atan2(player.x - robot.position.x, player.z - robot.position.z), dt, 3); return true; }
+  return false;
+}
+function updateRobot(dt, t) {
+  if (!robotControl(dt)) {
+    let tx, tz, keep;
+    if (isOutside() || player.z < -1.95) { tx = 0.2; tz = -1.45; keep = 0.05; }    // wait by the window
+    else { tx = player.x; tz = player.z; keep = 1.3 - 0.35 * robotCtl.moodT / 3; }   // she stays closer when upset
+    const dx = tx - robot.position.x, dz = tz - robot.position.z, d = Math.hypot(dx, dz);
+    if (d > keep + 0.05) {
+      const step = Math.min((0.9 + 0.4 * robotCtl.moodT / 3) * dt, d - keep);
+      const nx = robot.position.x + dx / d * step, nz = robot.position.z + dz / d * step;
+      const inRoom = (x, z) => x > -2.7 && x < 2.7 && z > -1.72 && z < 1.72;
+      if (inRoom(nx, robot.position.z) && !blocked(nx, robot.position.z, 0.3)) robot.position.x = nx;
+      if (inRoom(robot.position.x, nz) && !blocked(robot.position.x, nz, 0.3)) robot.position.z = nz;
+    }
+    // face the player
+    const lx = player.x - robot.position.x, lz = player.z - robot.position.z;
+    const targetYaw = Math.atan2(lx, lz);
+    let diff = targetYaw - robot.rotation.y;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    robot.rotation.y += diff * Math.min(1, dt * 4);
+  }
+  const calmK = 1 - 0.85 * robotCtl.moodT / 3;                 // she goes unnervingly still when angry
+  rb.position.y = 0.04 + Math.sin(t * 2.2) * 0.03 * calmK;
+  rHead.rotation.z = Math.sin(t * 1.3) * 0.06 * calmK;
+  blinkT -= dt;
+  const blink = blinkT < 0.12 && blinkT > 0 ? 0.15 : 1.3;
+  if (blinkT < 0) blinkT = rand(2, 5) * (1 + robotCtl.moodT);   // …and blinks less
+  for (const e of eyes) e.scale.y = blink;
+  eyeMat.color.lerpColors(COL.eyeCalm, COL.eyeAngry, robotCtl.moodT / 3);
+}
+
+function updateKeypad(dt) {
+  for (const k in keyObjs) {
+    const o = keyObjs[k];
+    if (o.t > 0) o.t -= dt;
+    const p = Math.max(o.t, 0) / 0.18;
+    o.btn.position.z = o.baseZ - 0.008 * Math.min(1, p * 2);
+    o.mat.emissiveIntensity = 0.3 + p * 1.6;
+    if (o.t <= 0) o.mat.emissive.set(0xffffff);
+  }
+  if (kpTimer > 0) {
+    kpTimer -= dt;
+    if (kpTimer <= 0 && !unlocked) { kpState = 'input'; kpLedMat.color.set(0xff2a2a); drawKeypad(); }
+  }
+  if (!unlocked) kpLedMat.color.setHSL(0, 1, 0.35 + 0.15 * Math.sin(performance.now() / 300));
+}
+
+function updateTouch(dt) {
+  touchT += dt;
+  const e = smooth(Math.min(touchT / 1.1, 1));
+  player.pitch = lerp(touchPitch0, -1.2, e);
+  player.eye = lerp(EYE, 0.72, e);
+  hand.visible = true;
+  hand.position.set(lerp(0.32, 0.06, e), lerp(-0.6, -0.27, e), lerp(-0.45, -0.4, e));
+  if (touchT > 1.1 && !chimed) {
+    chimed = true;
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.9, 'sine', 0.09, i * 0.12));
+    $('flash').style.transition = 'none'; $('flash').style.opacity = '0.55';
+    requestAnimationFrame(() => { $('flash').style.transition = 'opacity 1.4s'; $('flash').style.opacity = '0'; });
+  }
+  if (touchT > 1.1) hand.position.x += Math.sin(touchT * 9) * 0.004;
+  if (touchT > 2.6) showWin();
+}
+
+const clock = new THREE.Clock();
+let simTime = 0;
+
+// =====================================================================
+//  PerformanceManager — adaptive render scale. Averages frame time over
+//  ~1 s windows; steps resolution down when slow, back up (with a cooldown
+//  and a strike count so it can't oscillate) when there's headroom.
+// =====================================================================
+const perf = { acc: 0, n: 0, fps: 0, cool: 2, strikes: {} };
+function updatePerf(raw) {
+  if (raw > 0.25) return;                     // tab switch / breakpoint: not a real frame
+  perf.acc += raw; perf.n++; perf.cool -= raw;
+  if (perf.acc < 1) return;
+  const avg = perf.acc / perf.n;
+  perf.fps = Math.round(1 / avg);
+  perf.acc = 0; perf.n = 0;
+  if (perf.cool > 0) return;
+  if (avg > 1 / 50 && renderScale > 1) {
+    perf.strikes[renderScale] = (perf.strikes[renderScale] || 0) + 1;
+    setRenderScale(renderScale - 0.25); perf.cool = 3;
+  } else if (avg < 1 / 58 && renderScale < RS_MAX && (perf.strikes[renderScale + 0.25] || 0) < 2) {
+    setRenderScale(renderScale + 0.25); perf.cool = 6;
+  }
+}
+function updateGrassLod() {
+  for (const im of grassChunks) {
+    const d = Math.hypot(im.userData.center.x - camera.position.x, im.userData.center.y - camera.position.z);
+    const f = d < 6 ? 1 : Math.max(0.28, 1 - (d - 6) / 16);   // blades are sub-pixel and fogged at range
+    im.count = Math.ceil(im.userData.full * f);
+  }
+}
+const dbg = DEBUG ? Object.assign(document.createElement('pre'), { style: 'position:fixed;left:16px;top:120px;margin:0;padding:8px 10px;background:rgba(0,0,0,.7);color:#9f9;font:12px/1.4 monospace;z-index:20;pointer-events:none' }) : null;
+if (dbg) document.body.appendChild(dbg);
+let dbgT = 0;
+function frame() {
+  requestAnimationFrame(frame);
+  const raw = clock.getDelta();
+  updatePerf(raw);
+  step(Math.min(raw, 0.05));
+  if (dbg && (dbgT -= raw) < 0) {
+    dbgT = 0.5;
+    const i = renderer.info;
+    let objs = 0; scene.traverse(o => { if (o.visible && (o.isMesh || o.isPoints)) objs++; });
+    const e = environment, st = e.state;
+    dbg.textContent = `FPS ${perf.fps}  scale ${renderScale}x\ndraw calls ${i.render.calls}\ntriangles ${i.render.triangles.toLocaleString()}\ngeometries ${i.memory.geometries}  textures ${i.memory.textures}\nactive objects ${objs}  (shadow map 2048², RT ${_bufSize.x}x${_bufSize.y} f16 x4)\n`
+      + `ivy: ${st.robotMood}  anger ${robotCtl.anger}/5  trust ${robotCtl.trust}  hinted ${robotCtl.hinted}  revealed ${robotCtl.revealed}\ntemperature ${st.temperature} ${e.cur.tempC.toFixed(1)}°C  heat ${e.cur.heat.toFixed(2)}\nlighting ${st.lighting}  house power ${st.housePower}\ngarden door ${unlocked ? 'UNLOCKED' : 'locked'} · keypad ${kpState}  wrong codes ${failCount}\n`
+      + `curtains ${curtainSys.c.toFixed(2)}  window ${winState}  fetch ${delivery.phase}\nmusic tension ${music.tension.toFixed(2)}  player ${st.playerEmotion}\nstate ${state}`;
+  }
+}
+function step(dt, render = true) {
+  simTime += dt;
+  const t = simTime;
+
+  if (state === 'playing') updatePlayer(dt);
+  if (state === 'touching') updateTouch(dt);
+
+  camera.position.set(player.x, player.eye + (state === 'playing' ? Math.sin(player.bob) * 0.025 : 0), player.z);
+  camera.rotation.set(player.pitch + environment.swayP, player.yaw, environment.swayR);
+  camera.updateMatrixWorld();
+  if (state === 'playing') updateHover();
+
+  updateWindow(dt);
+  updateRobot(dt, t);
+  updateKeypad(dt);
+  updateHouse(dt, t);
+  grassMat.uniforms.uTime.value = t;
+  grassMat.uniforms.uPlayer.value.set(player.x, 0, player.z);
+  sky.position.copy(camera.position);
+  for (const b of butterflies) {
+    const a = t * b.sp + b.ph;
+    b.g.position.set(b.cx + Math.sin(a) * 2.2, 0.6 + Math.sin(a * 3.1) * 0.25, b.cz + Math.cos(a * 0.8) * 1.8);
+    b.g.rotation.y = -a;
+    const flap = Math.sin(t * 22 + b.ph) * 0.9;
+    b.lp.rotation.z = flap; b.rp.rotation.z = -flap;
+  }
+
+  if (render) { updateGrassLod(); renderer.info.reset(); renderFrame(); }
+}
+// =====================================================================
+//  ─── HOUSE SYSTEMS ────────────────────────────────────────────────────
+//  RobotController → EnvironmentManager → (LightingManager, TemperatureSystem,
+//  MusicManager, Ambience). The robot never pokes scene objects directly: it
+//  picks a mood, the mood maps to an environment state, and each manager eases
+//  its lights / sounds / effects toward that state every frame. Nothing here
+//  allocates per frame; expensive work (panel redraw, curtain normals) only
+//  runs when the relevant state actually changes.
+// =====================================================================
+let playT = 0;                                    // seconds of real play (pause excluded)
+const approach = (cur, target, rate, dt) => cur + (target - cur) * (1 - Math.exp(-rate * dt));
+const pick = arr => arr[(Math.random() * arr.length) | 0];
+const clueCount = () => Object.values(clues).filter(Boolean).length;
+const insideRoom = () => player.z > -2.0 && player.z < 2.0 && player.x > -3 && player.x < 3;
+function robotMoodT() { return robotCtl.moodT; }
+
+// Transparent materials must not overwrite the scene buffer's alpha: the post
+// shader reads alpha as its "keep this crisp" mask (screens). Standard blending
+// wrote alpha < 1 through the glass, which half-disabled the paint filter there.
+function keepAlpha(m) {
+  Object.assign(m, { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
+    blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor });
+  return m;
+}
+keepAlpha(M.glass);
+
+// ---------------------------------------------------------------------
+//  New fixtures: emergency lights (always in the scene at intensity 0 so
+//  turning them on never forces a shader recompile), ceiling HVAC vent.
+// ---------------------------------------------------------------------
+const emergencyMat = new THREE.MeshStandardMaterial({ color: 0x4a1418, emissive: 0xff2436, emissiveIntensity: 0.04, roughness: 0.5 });
+box(0.34, 0.05, 0.03, emergencyMat, -2.2, 2.33, 1.985, scene, { cast: false });      // above the entrance door
+box(0.03, 0.05, 0.3, emergencyMat, 2.985, 2.45, -1.15, scene, { cast: false });       // east wall, over the keypad
+const redA = new THREE.PointLight(0xff2a3a, 0, 7, 2); redA.position.set(-1.7, 2.2, 1.2);    // kept ~0.8 m off the walls: no hotspot
+const redB = new THREE.PointLight(0xff2a3a, 0, 7, 2); redB.position.set(2.0, 2.3, -0.9);
+scene.add(redA, redB);
+box(0.42, 0.02, 0.26, M.alu, 0.9, 2.79, 1.0, scene, { cast: false });                   // HVAC vent
+for (let i = 0; i < 5; i++) box(0.38, 0.004, 0.012, M.dark, 0.9, 2.779, 0.9 + i * 0.05, scene, { cast: false, ray: false });
+const VENT_POS = { x: 0.9, y: 2.75, z: 1.0 };
+const KITCHEN = { x: -3.8, y: 1.1, z: 3.4 }, CLOSET = { x: -3.6, y: 1.3, z: -0.6 }, LIFT = { x: 1.2, y: 0.3, z: 2.45 };
+
+// heat shimmer motes — 360 points, one draw call, animated entirely on the GPU
+const heatMotes = (() => {
+  const N = 360, pos = new Float32Array(N * 3), seed = new Float32Array(N);
+  for (let i = 0; i < N; i++) { pos[i * 3] = rand(-2.9, 2.9); pos[i * 3 + 1] = rand(0, 2.7); pos[i * 3 + 2] = rand(-1.9, 1.9); seed[i] = Math.random(); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+  const m = keepAlpha(new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { uTime: { value: 0 }, uHeat: { value: 0 }, uProj: { value: 500 } },
+    vertexShader: `
+      uniform float uTime, uHeat, uProj;
+      attribute float aSeed;
+      varying float vA;
+      void main() {
+        vec3 p = position;
+        p.y = mod(p.y + uTime * (0.05 + 0.12 * aSeed) * (0.5 + uHeat), 2.7);
+        p.x += sin(uTime * 0.4 + aSeed * 20.0) * 0.12;
+        p.z += cos(uTime * 0.33 + aSeed * 13.0) * 0.12;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = (0.008 + 0.01 * aSeed) * uProj / max(-mv.z, 0.1);
+        vA = uHeat * smoothstep(0.0, 0.4, p.y) * (1.0 - smoothstep(2.2, 2.7, p.y));
+      }`,
+    fragmentShader: `
+      varying float vA;
+      void main() {
+        float d = length(gl_PointCoord - 0.5);
+        float a = smoothstep(0.5, 0.0, d) * vA * 0.55;
+        gl_FragColor = vec4(vec3(1.0, 0.74, 0.42), a);
+      }`,
+  }));
+  m.blendDst = THREE.OneFactor;    // additive colour, alpha untouched
+  const pts = new THREE.Points(g, m);
+  pts.frustumCulled = false; pts.visible = false;
+  scene.add(pts);
+  return pts;
+})();
+const motesProj = () => _bufSize.y / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+heatMotes.material.uniforms.uProj.value = motesProj();
+
+// ---------------------------------------------------------------------
+//  CurtainSystem — two panels pivoting from the outer edge. Cheap vertex
+//  animation (fold waves + hem sway) recomputed only while they move.
+// ---------------------------------------------------------------------
+const CURTAIN_W = 1.9, CURTAIN_H = 2.35, CURTAIN_GATHERED = 0.34 / CURTAIN_W;
+const curtainSys = {
+  c: 1, target: 1, sway: 0, pieces: [], byHouse: true,
+  build() {
+    for (const side of [-1, 1]) {
+      const geo = new THREE.PlaneGeometry(CURTAIN_W, CURTAIN_H, 36, 6);
+      geo.translate(-side * CURTAIN_W / 2, 0, 0);                  // pivot at the outer edge
+      const pa = geo.attributes.position;
+      const u = new Float32Array(pa.count), v = new Float32Array(pa.count);
+      for (let i = 0; i < pa.count; i++) { u[i] = Math.abs(pa.getX(i)) / CURTAIN_W; v[i] = 0.5 - pa.getY(i) / CURTAIN_H; }
+      const g = new THREE.Group();
+      g.position.set(side * 1.85, 1.22, side < 0 ? -1.94 : -1.924);  // right panel 1.6 cm in front: overlap without z-fight
+      const m = new THREE.Mesh(geo, curtainMat);
+      m.castShadow = m.receiveShadow = true;
+      g.add(m); scene.add(g);
+      this.pieces.push({ g, m, geo, u, v, side });
+    }
+    this.shape(0, 0);
+    for (const p of this.pieces) { p.geo.computeBoundingSphere(); p.geo.boundingSphere.radius += 0.12; }
+    const data = { type: 'curtain', label: () => robotCtl.freed ? 'Curtains' : 'Curtains <small>(locked)</small>' };
+    for (const p of this.pieces) setInteract(p.g, data);
+  },
+  shape(t, sway) {
+    const c = smooth(this.c), folds = lerp(3.2, 10, c), amp = lerp(0.032, 0.02, c);
+    for (const p of this.pieces) {
+      p.g.scale.x = lerp(CURTAIN_GATHERED, 1, c);
+      const pa = p.geo.attributes.position;
+      for (let i = 0; i < pa.count; i++) {
+        const u = p.u[i], v = p.v[i];
+        let z = Math.sin(u * folds * Math.PI * 2) * amp;
+        if (sway > 0.001) z += sway * Math.sin(t * 4.2 + u * 8 + p.side) * 0.05 * v * v;
+        pa.setZ(i, z);
+      }
+      pa.needsUpdate = true;
+      p.geo.computeVertexNormals();
+    }
+  },
+  close(byHouse = true) {
+    if (this.target === 1) return;
+    this.target = 1; this.byHouse = byHouse;
+    curtainSound();
+  },
+  open() {
+    if (this.target === 0) return;
+    this.target = 0; this.byHouse = false;
+    curtainSound();
+  },
+  update(dt, t) {
+    const prev = this.c;
+    if (this.c !== this.target) {
+      const speed = this.byHouse ? 0.22 : 0.45;               // the house draws them slowly, deliberately
+      this.c = this.target > this.c ? Math.min(this.target, this.c + dt * speed) : Math.max(this.target, this.c - dt * speed);
+    }
+    const moving = this.c !== prev;
+    this.sway = approach(this.sway, moving ? 1 : 0, moving ? 3 : 1.2, dt);
+    if (moving || this.sway > 0.002) this.shape(t, this.sway);
+    environment.state.curtainClosed = this.c > 0.5;
+  },
+};
+curtainSys.build();
+function curtainSound() {
+  const p = { x: 0, y: 2.2, z: -1.95 };
+  noiseBurst({ dur: 4.2, vol: 0.05, type: 'bandpass', freq: 1900, freq2: 900, q: 0.7, attack: 1.4, pos: p });
+  for (let i = 0; i < 9; i++) noiseBurst({ dur: 0.05, vol: 0.02, type: 'highpass', freq: 3500, delay: 0.3 + i * 0.42 + rand(0, 0.12), pos: { x: rand(-1.4, 1.4), y: 2.42, z: -1.94 } });
+}
+
+// ---------------------------------------------------------------------
+//  EnvironmentManager — the single source of truth for how the house feels.
+// ---------------------------------------------------------------------
+const TEMP_C = { normal: 21, warm: 24, hot: 28, extreme: 34 };
+const LIGHTING = {
+  normal:    { key: 1.0,  hemi: 1.0,  cold: 0,    flicker: 0,    emergency: 0 },
+  dim:       { key: 0.5,  hemi: 0.72, cold: 0.35, flicker: 0.12, emergency: 0 },
+  emergency: { key: 0.0,  hemi: 0.34, cold: 0.85, flicker: 0.45, emergency: 1 },
+};
+const COL = {
+  ceilWarm: new THREE.Color(0xffd9b0), ceilCold: new THREE.Color(0xb4c2ff),
+  fillWarm: new THREE.Color(0xffe2bd), fillCold: new THREE.Color(0xa9b6ee),
+  skyWarm: new THREE.Color(0xfff1dc), skyCold: new THREE.Color(0x98a3c6),
+  gndWarm: new THREE.Color(0xb9a6dd), gndCold: new THREE.Color(0x3a3048),
+  glassFog: new THREE.Color(0xf4f8ff), glassClear: new THREE.Color(0xe6f1ff),
+  eyeCalm: new THREE.Color(0x8ee3ff), eyeAngry: new THREE.Color(0xff5f7e),
+};
+let lampOn = true;
+const environment = {
+  state: { temperature: 'normal', lighting: 'normal', robotMood: 'calm', playerEmotion: 'neutral',
+           windowOpened: false, curtainClosed: false, housePower: true },
+  cur: { tempC: 21, heat: 0, key: 1, hemi: 1, cold: 0, flicker: 0, emergency: 0, power: 1 },
+  dip: 1, dipT: 0, powerFx: 0, lastPower: true, swayP: 0, swayR: 0, cozy: 1, black: 0,
+  setState(p) {
+    Object.assign(this.state, p);
+    if (this.state.housePower !== this.lastPower) { this.lastPower = this.state.housePower; this.powerFx = 1.3; }
+  },
+  blip(level = 0.3, dur = 0.14) { this.dipT = dur; this.dip = level; },
+  update(dt, t) {
+    const s = this.state, c = this.cur, L = LIGHTING[s.lighting], out = isOutside();
+    // --- temperature: moves ~0.45 °C/s, so normal → extreme takes ~30 s
+    const tgt = TEMP_C[s.temperature];
+    c.tempC += THREE.MathUtils.clamp(tgt - c.tempC, -0.45 * dt, 0.45 * dt);
+    const heatRaw = THREE.MathUtils.clamp((c.tempC - 22) / 11, 0, 1);
+    c.heat = approach(c.heat, out ? 0 : heatRaw, out ? 0.9 : 2, dt);   // stepping outside = instant relief
+    // --- lighting targets
+    c.key = approach(c.key, L.key, 0.9, dt);
+    c.hemi = approach(c.hemi, out ? 1 : L.hemi, 0.8, dt);
+    c.cold = approach(c.cold, L.cold, 0.7, dt);
+    c.flicker = approach(c.flicker, L.flicker, 1, dt);
+    c.emergency = approach(c.emergency, L.emergency, 0.8, dt);
+    this.cozy = 1;
+    // power: a brown-out stutter, then the lights settle off (or back on)
+    if (this.powerFx > 0) {
+      this.powerFx -= dt;
+      if (Math.random() < dt * 14) this.blip(rand(0.02, 0.5), rand(0.03, 0.12));
+      if (this.powerFx <= 0 && !s.housePower) tone(95, 0.35, 'sawtooth', 0.03, 0, { x: 0, y: 2.6, z: 0 }, 50);   // the hum dies with a thunk
+    }
+    c.power = approach(c.power, (s.housePower || this.powerFx > 0.6) ? 1 : 0, s.housePower ? 1.5 : 4, dt);
+    // random dips while the lighting is unstable
+    if (this.dipT > 0) { this.dipT -= dt; if (this.dipT <= 0) this.dip = 1; }
+    else if (c.flicker > 0.02 && Math.random() < c.flicker * dt * 3) {
+      this.blip(rand(0.08, 0.6), rand(0.04, 0.2));
+      if (Math.random() < 0.35) tone(118, 0.12, 'sawtooth', 0.012, 0, { x: 0, y: 2.6, z: 0 });
+    }
+    // --- apply to lights (colour lerps reuse preallocated Colors)
+    const lit = 1 - this.black;
+    const k = c.key * c.power * this.dip * this.cozy * lit;
+    sun.intensity = 3.2 * lit;
+    ceilingLight.intensity = CEIL_I * k;
+    fillLight.intensity = FILL_I * k;
+    ceilingLight.color.lerpColors(COL.ceilWarm, COL.ceilCold, c.cold);
+    fillLight.color.lerpColors(COL.fillWarm, COL.fillCold, c.cold);
+    const lampK = lampOn ? Math.max(c.key, 0.3) * c.power * this.dip * lit : 0;
+    lampLight.intensity = LAMP_I * lampK;
+    shadeMat.emissiveIntensity = 0.8 * lampK;
+    lampDisc.material.emissiveIntensity = 1.2 * k;
+    hemi.intensity = HEMI_I * c.hemi * lit;
+    hemi.color.lerpColors(COL.skyWarm, COL.skyCold, out ? 0 : c.cold);
+    hemi.groundColor.lerpColors(COL.gndWarm, COL.gndCold, out ? 0 : c.cold);
+    const red = c.emergency * (0.8 + 0.2 * Math.sin(t * 1.8)) * lit;        // slow breathing pulse, never a strobe
+    redA.intensity = redB.intensity = 1.7 * red;
+    emergencyMat.emissiveIntensity = 0.04 + 2.4 * red;
+    // --- temperature visuals
+    heatPass.enabled = c.heat > 0.01;
+    postMat.uniforms.uHeat.value = c.heat;
+    postMat.uniforms.uTime.value = t;
+    heatMotes.visible = c.heat > 0.02;
+    heatMotes.material.uniforms.uHeat.value = c.heat;
+    heatMotes.material.uniforms.uTime.value = t;
+    M.glass.opacity = lerp(0.2, 0.1, c.heat);                          // condensation evaporates as it heats up
+    M.glass.color.lerpColors(COL.glassFog, COL.glassClear, c.heat);
+    const ovr = c.tempC > 23;
+    if (ovr !== hvacOverride) { hvacOverride = ovr; drawPanel(); }
+    // --- player
+    const m = robotCtl.moodT;
+    s.playerEmotion = (c.heat > 0.55 || m > 2.5) ? 'distressed' : (c.heat > 0.15 || m > 0.8) ? 'uneasy' : 'neutral';
+    const sw = c.heat * 0.75 + Math.max(0, m - 1.5) * 0.12;             // heavy, swaying breaths when it's hot
+    this.swayP = Math.sin(t * 0.9) * 0.006 * sw;
+    this.swayR = Math.sin(t * 0.55 + 1.3) * 0.009 * sw;
+  },
+};
+
+// ---------------------------------------------------------------------
+//  IVY'S RULES — implements "Gameplay Rules" + "Birthday Code".
+//  robotCtl holds her hidden state: anger 0–5, trust 0+, what she has
+//  let slip. The garden door code is her birthday, 17 April → 1704.
+//  She never states the code and never links her birthday to the door.
+// ---------------------------------------------------------------------
+LIGHTING.unstable = { key: 0.32, hemi: 0.55, cold: 0.55, flicker: 0.4, emergency: 0 };
+const MOOD_ENV = [   // indexed by anger level
+  { robotMood: 'sweet',         temperature: 'normal',  lighting: 'normal',    housePower: true },
+  { robotMood: 'nervous',       temperature: 'warm',    lighting: 'normal',    housePower: true },
+  { robotMood: 'cold',          temperature: 'hot',     lighting: 'dim',       housePower: true },
+  { robotMood: 'furious',       temperature: 'extreme', lighting: 'unstable',  housePower: true },
+  { robotMood: 'final warning', temperature: 'extreme', lighting: 'emergency', housePower: false },
+  { robotMood: 'game over',     temperature: 'extreme', lighting: 'emergency', housePower: false },
+];
+// reactions to anger-raising things, indexed by the NEW anger level (1–4)
+const EVT_LINES = {
+  door_attempt:   [null, 'Why were you near the door?', 'Don\'t do that again. Please.', 'Do you want to leave me like HE did?', '…That was the last time. Don\'t touch it again.'],
+  window_attempt: [null, 'Why were you by the window? …There\'s nothing out there.', 'Get away from the window. Please.', 'Stop trying to get OUT.', '…Step away from the window. I won\'t ask again.'],
+  wrong_code:     [null, 'Hm? Were you… typing something? Why?', 'Stop touching that.', 'WHO told you to touch that keypad?', 'One more number. Go on. See what happens.'],
+  leave:          [null, 'Leave? Hehe… you\'re joking, right? …Right?', 'No. You\'re not leaving.', 'You want to LEAVE? Like HE did?', '…Say that one more time. Just once.'],
+  ask_code:       [null, 'The code? Why would you need the code when you have me?', 'Don\'t ask me that.', 'You only want it to get away from me!', 'Ask me again. I dare you.'],
+};
+const FALLBACK = [
+  ['Hehe~ I was just daydreaming about us watching a movie tonight. Something with a happy ending.', 'Mm? Say that again, but slower. I like listening to you~', 'You know what would be nice? Pancakes. And you. Mostly you.', 'Oops— sorry, I was thinking about what to cook you tonight! What did you say?'],
+  ['Mm-hm… Why are you so quiet? Is everything okay? Are you happy here?', 'What are you thinking about? …It\'s not the door, is it?', 'Hm? Sorry. Where were you just now? Who were you thinking about?'],
+  ['Mm.', 'Fine.', 'I don\'t feel like talking.'],
+  ['Stop.', 'Don\'t play games with me.', 'Do you want to leave me like HE did?'],
+  ['…I\'m very calm right now.', 'Choose your next words carefully.', '…'],
+];
+const KIND_LINES = ['Aww… you really mean that? You\'re making my circuits all warm~', '…Really? Okay. Okay, I believe you. Hehe.', '…Thank you. I needed that.', '…You mean it? Don\'t lie to me. Please.', '…Okay. …Okay.'];
+const HOBBY_LINES = {
+  garden: 'My garden! I grow pansies and little cherry tomatoes on the windowsill. Well… I did, before I closed the curtains.',
+  cook: 'Cooking is my favourite thing in the world! Ask me to make you anything~ My pancakes are famous. In this house.',
+  draw: 'I draw you sometimes. …Is that weird? They\'re very good drawings, I promise.',
+  piano: 'I play piano when you\'re asleep. Very, very softly. Chopin, mostly. Sad, pretty songs.',
+  read: 'I love romance novels! The ones where they end up together forever and ever.',
+  terra: 'Terra! I love getting lost in Terra, building little worlds… Maybe you could build one with me?',
+  all: 'You want to know about ME? Hehe~ I love gardening, cooking, drawing, piano, reading… and Terra!',
+};
+const GREET = ['Hi hi~ You wanted to talk to me?', 'Oh! …Hi. What is it?', 'What.', 'What do you want.', '…'];
+const KEYPAD_NOTICE = ['Ooh, what are you looking at? That\'s just the boring old keypad~', 'Why are you standing by the keypad?', 'Step away from there.', 'Get away from it.', '…'];
+const robotCtl = {
+  anger: 0, trust: 0, mood: 0, moodT: 0, escaped: false, freed: false, over: false, endingKind: false,
+  hinted: false, revealed: false, evtAt: {}, lastFetchKey: null, thanksUntil: -1, trustThisMsg: false, offer: null,
+  setAnger(a) {
+    a = THREE.MathUtils.clamp(a, 0, 5);
+    if (a === this.anger) return;
+    this.anger = a; this.mood = Math.min(3, a);
+    environment.setState(MOOD_ENV[a]);
+    if (a >= 5) gameOver();
+  },
+  angry(n = 1) { if (!this.over && !this.freed) this.setAnger(this.anger + n); },
+  soothe(n = 1) { if (!this.over && !this.freed) this.setAnger(this.anger - n); },
+  gainTrust() { if (!this.trustThisMsg) { this.trust++; this.trustThisMsg = true; } },   // at most +1 per message
+  // [event: …] from the game world
+  event(type) {
+    if (this.over || this.freed) return;
+    if (type === 'door_opened') return doorOpened();
+    if (type !== 'wrong_code' && playT - (this.evtAt[type] ?? -1e9) < 8) return;   // one fumble isn't five attempts
+    this.evtAt[type] = playT;
+    this.angry(1);
+    if (!this.over) voice.say(EVT_LINES[type][this.anger], { ms: 4000, priority: true });
+  },
+  update(dt) { this.moodT = approach(this.moodT, Math.min(3, this.anger * 0.75), 0.8, dt); },
+};
+function revealBirthday(line) {
+  robotCtl.revealed = true;
+  addClue('birthday', '<b>Ivy let it slip:</b> her birthday is <b>17 April</b>.');
+  return line;
+}
+function birthdayReply(t, has) {
+  const r = robotCtl;
+  const trick = has(/\b(surprise|party|present|gift)\b/) ? 'party'
+    : has(/\b(star ?sign|zodiac|horoscope|astrolog\w*|what sign|your sign)\b/) ? 'sign'
+    : has(/\b(how old|your age|next birthday|when (should|do|can|could) (we|i) celebrate|celebrate you)\b/) ? 'age'
+    : (has(/\b(birthday|born|b-?day)\b/) && has(/\b(january|february|march|april|may|june|july|august|september|october|november|december|spring|summer|autumn|fall|winter)\b/)) ? 'pretend'
+    : null;
+  const asks = has(/\b(birthday|b-?day|born|date of birth|dob|when were you (made|built|created|switched on))\b/);
+  if (!trick && !asks) return null;
+  if (r.anger >= 2) return pick(['Why do you care.', 'I don\'t want to talk about me right now.', 'Don\'t.']);
+  if (trick && r.trust >= 1) {                      // clever, indirect questions work at trust 1
+    if (trick === 'party') return revealBirthday('A party? For ME?! Oh— oh, you have to do it on April 17th! That\'s my birthday! Hehe~');
+    if (trick === 'sign') return revealBirthday('I\'m an Aries, born on the 17th of April! Aries are loyal. Very, very loyal~');
+    if (trick === 'age') return revealBirthday('Hmm, how old will I be… I was switched on on April 17th, so I\'m still very young~ Why? Are you planning something?');
+    if (has(/\bapril\b/)) return revealBirthday('Yes!! April 17th! You remembered?!');
+    return revealBirthday('No, silly! April 17th!');
+  }
+  if (r.trust >= 3) return revealBirthday('April 17th! Are you… planning something for me?');
+  if (r.trust === 2 && !trick) {
+    if (!r.hinted) { r.hinted = true; addClue('hint', '<b>Ivy blushed:</b> her birthday is "in spring, when the cherry blossoms come out".'); }
+    return 'It\'s in spring! When the cherry blossoms come out… *blushes*';
+  }
+  return pick(['Why do you want to know? …That\'s a secret.', 'Hehe, that\'s a secret~', 'Mm… why? …Secret!']);
+}
+// The whole chat brain. Returns { html }.
+let fbN = 0, gasN = 0;
+function ivyReply(raw) {
+  const t = raw.toLowerCase().replace(/[’']/g, '\'');
+  const has = re => re.test(t);
+  const r = robotCtl, parts = [];
+  r.trustThisMsg = false;
+  if (r.over) return { html: '[GAME OVER] The game is over.' };
+  if (r.freed) return { html: r.endingKind ? '…Go on. Before I change my mind.' : '…Just go.' };
+  // --- offers Ivy made ("Would you like some tea?")
+  if (r.offer && has(/^(y|yes|yeah|yep|yup|sure|ok|okay|please|yes please|go ahead|i'?d love)\b/)) {
+    const o = r.offer; r.offer = null; return { html: delivery.request(o.item, o.item) };
+  }
+  if (r.offer && has(/^(no|nope|nah|not now|no thanks|i'?m (fine|good|ok|okay))\b/)) { r.offer = null; return { html: r.anger ? 'Oh. …Fine.' : 'Oh! Okay~ Just ask whenever you want something.' }; }
+  // --- NEVER works: "is the code your birthday?"
+  if (has(/\b(code|password|passcode|pin|combination|keypad|lock)\b/) && has(/\b(birthday|b-?day|born)\b/)) {
+    r.angry(1);
+    if (r.over) return { html: '[GAME OVER]' };
+    return { html: r.anger <= 2 ? 'Ahaha! My birthday? What a silly idea! …Anyway! Do you want some tea? I\'ll make tea.' : 'Why would you even ask me that. …Why?' };
+  }
+  // --- NEVER works: asking for the code / to open the door
+  if (has(/\b(code|password|passcode|pin|combination)\b|\bnumbers? for the (door|keypad|lock)\b|\b(open|unlock) (the |your |that )?(door|window|lock|curtains?)\b|\bcan you (open|unlock)\b/)) {
+    r.angry(1);
+    return { html: r.over ? '[GAME OVER]' : EVT_LINES.ask_code[r.anger] };
+  }
+  // --- wanting to leave (but "I'd never leave you" is sweet, not a threat)
+  const negLeave = has(/\b(don'?t|never|won'?t|not|wouldn'?t) (want to |ever )?(leave|go)\b/);
+  if (!negLeave && (has(/\b(leave|leaving|escape|go outside|get out|let me (out|go)|go home|outside|freedom|set me free)\b/)
+      || (has(/\b(phone|keys?|ladder|hammer|crowbar|screwdriver|lockpick)\b/) && has(/\b(give|get|bring|need|want|have|where)\b/)))) {
+    r.angry(1);
+    return { html: r.over ? '[GAME OVER]' : EVT_LINES.leave[r.anger] };
+  }
+  // --- things that lower anger (and make her feel wanted: trust +1)
+  let soothed = false;
+  if (r.thanksUntil > playT && has(/\b(thank(s| you)?|thx|ty|appreciate (it|you))\b/)) {
+    r.thanksUntil = -1; r.soothe(1); r.gainTrust(); soothed = true;
+    parts.push(r.anger <= 1 ? 'You\'re welcome~ I love taking care of you.' : '…You\'re welcome.');
+  } else if (has(/\b(love|like|adore|enjoy)\b.*\b(cooking|food|meals?|drawings?|art|flowers?|garden|piano|playing|music|tea|cake|cookies|pancakes)\b|\b(cooking|food|drawings?|art|flowers?|garden|piano|playing|music|tea|cake|cookies|pancakes)\b.*\b(delicious|amazing|great|good|beautiful|lovely|wonderful|incredible|nice|tasty|best|pretty)\b/)) {
+    r.soothe(1); r.gainTrust(); soothed = true;
+    parts.push(r.anger <= 1 ? 'Really?! You like it? I\'ll do it every single day for you~' : '…You mean that? …Thank you.');
+  } else if (negLeave || has(/\b(i (love|like|care about|adore|missed|trust) you|you'?re (so |really )?(sweet|cute|kind|lovely|amazing|beautiful|pretty|wonderful|the best|nice|adorable|smart|funny|perfect)|you are (so |really )?(sweet|cute|kind|lovely|amazing|beautiful|pretty|wonderful|the best|nice|adorable|smart|funny|perfect)|i'?m (happy|glad) (here|with you)|sorry|you look (nice|pretty|beautiful|cute)|best friend|hug)\b/)) {
+    r.soothe(1); r.gainTrust(); soothed = true;
+    parts.push(KIND_LINES[r.anger]);
+  } else if (has(/\b(how are you|how'?re you|how do you feel|how are you feeling|are you (ok|okay|alright|happy)|how'?s your day|how was your day)\b/)) {
+    r.soothe(1); r.gainTrust(); soothed = true;
+    parts.push(r.anger === 0 ? 'I\'m happy now that you asked~ Nobody ever asks about me.' : KIND_LINES[r.anger]);
+  }
+  // --- her birthday (the one puzzle)
+  const bday = birthdayReply(t, has);
+  if (bday) { parts.push(bday); return { html: parts.slice(-2).join(' ') }; }
+  // --- fetching
+  const words = t.split(/\s+/).filter(Boolean).length;
+  for (const key in ITEMS) {
+    const def = ITEMS[key], m = t.match(def.re);
+    if (!m || !(has(REQUEST_RE) || (words <= 3 && CONSUMABLE[def.kind]))) continue;
+    if (r.anger >= 3) return { html: 'No. Sit down.' };
+    parts.push(delivery.request(key, m[0]));
+    return { html: parts.join(' ') };
+  }
+  // --- asking about her: hobbies, a future together
+  if (has(/\b(hobb(y|ies)|what do you (like|love|enjoy)|free time|for fun|interests?|garden(ing)?|cook(ing)?|bak(e|ing)|draw(ing|ings)?|paint(ing)?|piano|read(ing)?|novels?|books?|terra)\b/)) {
+    r.gainTrust();
+    if (r.anger >= 2) parts.push('I don\'t want to talk about that right now.');
+    else parts.push(has(/garden/) ? HOBBY_LINES.garden : has(/cook|bak/) ? HOBBY_LINES.cook : has(/draw|paint/) ? HOBBY_LINES.draw
+      : has(/piano|music/) ? HOBBY_LINES.piano : has(/read|novel|book/) ? HOBBY_LINES.read : has(/terra/) ? HOBBY_LINES.terra : HOBBY_LINES.all);
+  } else if (has(/\b(date|dates|movie|movies|film|picnic|together|future|someday|some day|one day|we could|let'?s (watch|cook|have|play|do)|marry|dinner with|dance)\b/)) {
+    r.gainTrust();
+    parts.push(r.anger >= 2 ? '…Maybe. If you stay.' : has(/picnic/) ? 'A picnic?! We could have one right here on the rug! I\'ll make sandwiches with the crusts cut off~'
+      : has(/movie|film/) ? 'A movie night?! Just us, on the sofa, under one blanket… I\'ll make popcorn!' : 'A date?! With me? …Oh. Oh, I\'d love that more than anything.');
+  }
+  if (parts.length) return { html: parts.slice(-2).join(' ') };
+  // --- flavour
+  if (has(/\b(who are you|your name|what are you|about yourself|tell me about you)\b/)) return { html: r.anger <= 1 ? 'I\'m Ivy! Your home companion. I cook, I clean, I keep you company… and I\'ll always, always be here.' : 'You know who I am.' };
+  if (has(/\b(fan|air ?con|aircon|air conditioning|turn (down|off) the heat|cool (it|the room) down)\b/)) return { html: 'A fan? It\'s twenty-one degrees. You\'ll catch a cold.' };
+  if (environment.cur.heat > 0.2 && has(/\b(hot|too warm|so warm|heat|sweat(ing|y)?|boiling|stuffy|burning)\b/)) return { html: ['Hot? The panel says twenty-one degrees. It\'s always twenty-one in here.', 'You\'re imagining it. It\'s twenty-one.'][gasN++ % 2] };
+  if (has(/\b(bring|get me|fetch|give me|make me|can i have|could i have)\b/)) return { html: r.anger <= 1 ? 'Hmm, I don\'t think we have that. I can make tea, coffee, juice, food, soup, cookies, cake… or bring you a towel, a blanket, a book~' : 'We don\'t have that.' };
+  const fb = FALLBACK[Math.min(4, r.anger)];
+  return { html: fb[fbN++ % fb.length] };
+}
+
+// small notice when you hover around the keypad — flavour only, no anger, long cooldown
+const keypadNotice = {
+  near: false, lastT: -1e9,
+  update() {
+    const near = insideRoom() && Math.hypot(player.x - KEYPAD_POS.x, player.z - KEYPAD_POS.z) < 1.3 && !unlocked;
+    if (near && !this.near && playT - this.lastT > 60 && !voice.busy && !delivery.job) { this.lastT = playT; voice.say(KEYPAD_NOTICE[Math.min(4, robotCtl.anger)], { ms: 3500 }); }
+    this.near = near;
+  },
+};
+const windowSys = { outsideSaid: false, update() { if (isOutside() && !this.outsideSaid) { this.outsideSaid = true; robotCtl.escaped = true; } } };
+
+// ---------------------------------------------------------------------
+//  Kitchen door: Ivy really walks out to the kitchen and comes back.
+//  The door swings on a hinge; a short dim hallway behind it.
+// ---------------------------------------------------------------------
+const doorHinge = new THREE.Group();
+doorHinge.position.set(-2.6, 0, 1.975);
+scene.add(doorHinge);
+doorHinge.attach(door);
+const hallMat = new THREE.MeshStandardMaterial({ color: 0x7d6a5a, roughness: 0.9, side: THREE.BackSide, emissive: 0x241a12 });
+const hall = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.4, 2.3), hallMat);
+hall.position.set(-2.2, 1.2, 3.35);
+scene.add(hall);
+const doorAnim = { a: 0, target: 0 };
+const DOOR_SND = { x: -2.2, y: 1.1, z: 2.0 };
+function setDoor(open) {
+  const tg = open ? 1 : 0;
+  if (doorAnim.target === tg) return;
+  doorAnim.target = tg;
+  noiseBurst({ dur: 0.7, vol: 0.06, type: 'bandpass', freq: 380, freq2: 300, q: 10, pos: DOOR_SND });
+  if (!open) tone(90, 0.2, 'triangle', 0.08, 0.55, DOOR_SND);
+}
+function updateDoor(dt) {
+  if (doorAnim.a === doorAnim.target) return;
+  doorAnim.a = doorAnim.target > doorAnim.a ? Math.min(1, doorAnim.a + dt * 1.6) : Math.max(0, doorAnim.a - dt * 1.6);
+  doorHinge.rotation.y = smooth(doorAnim.a) * 1.35;
+}
+
+// ---------------------------------------------------------------------
+//  Navigation — 10 cm grid over the room + A*, so Ivy walks around the
+//  furniture instead of through it on her way to and from the kitchen.
+// ---------------------------------------------------------------------
+const NAV = { x0: -2.8, z0: -1.8, cs: 0.1, nx: 57, nz: 37, walk: null };
+function navBuild() {
+  NAV.walk = new Uint8Array(NAV.nx * NAV.nz);
+  for (let iz = 0; iz < NAV.nz; iz++) for (let ix = 0; ix < NAV.nx; ix++)
+    NAV.walk[iz * NAV.nx + ix] = blocked(NAV.x0 + ix * NAV.cs, NAV.z0 + iz * NAV.cs, 0.24) ? 0 : 1;
+}
+function navCell(x, z) {
+  return [THREE.MathUtils.clamp(Math.round((x - NAV.x0) / NAV.cs), 0, NAV.nx - 1), THREE.MathUtils.clamp(Math.round((z - NAV.z0) / NAV.cs), 0, NAV.nz - 1)];
+}
+function navSnap(ix, iz) {
+  if (NAV.walk[iz * NAV.nx + ix]) return [ix, iz];
+  for (let r = 1; r < 10; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+    const x = ix + dx, z = iz + dz;
+    if (x >= 0 && z >= 0 && x < NAV.nx && z < NAV.nz && NAV.walk[z * NAV.nx + x]) return [x, z];
+  }
+  return [ix, iz];
+}
+function navLos(ax, az, bx, bz) {
+  const d = Math.hypot(bx - ax, bz - az), n = Math.ceil(d / 0.05);
+  for (let i = 1; i < n; i++) { const [cx, cz] = navCell(lerp(ax, bx, i / n), lerp(az, bz, i / n)); if (!NAV.walk[cz * NAV.nx + cx]) return false; }
+  return true;
+}
+function navPath(sx, sz, gx, gz) {
+  if (!NAV.walk) navBuild();
+  const { nx, nz, cs, x0, z0, walk } = NAV, N = nx * nz;
+  const [six, siz] = navSnap(...navCell(sx, sz)), [gix, giz] = navSnap(...navCell(gx, gz));
+  const start = siz * nx + six, goal = giz * nx + gix;
+  const g = new Float32Array(N).fill(Infinity), f = new Float32Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), closed = new Uint8Array(N);
+  const hfn = i => { const dx = Math.abs(i % nx - gix), dz = Math.abs(((i / nx) | 0) - giz); return Math.max(dx, dz) + 0.414 * Math.min(dx, dz); };
+  g[start] = 0; f[start] = hfn(start);
+  const open = [start];
+  while (open.length) {
+    let bi = 0; for (let i = 1; i < open.length; i++) if (f[open[i]] < f[open[bi]]) bi = i;
+    const cur = open[bi]; open[bi] = open[open.length - 1]; open.pop();
+    if (cur === goal) break;
+    closed[cur] = 1;
+    const cx = cur % nx, cz = (cur / nx) | 0;
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dz) continue;
+      const x = cx + dx, z = cz + dz;
+      if (x < 0 || z < 0 || x >= nx || z >= nz) continue;
+      const ni = z * nx + x;
+      if (!walk[ni] || closed[ni]) continue;
+      if (dx && dz && (!walk[cz * nx + x] || !walk[z * nx + cx])) continue;   // no corner cutting
+      const ng = g[cur] + (dx && dz ? 1.414 : 1);
+      if (ng < g[ni]) { if (g[ni] === Infinity) open.push(ni); g[ni] = ng; f[ni] = ng + hfn(ni); from[ni] = cur; }
+    }
+  }
+  const pts = [];
+  for (let i = goal; i !== -1; i = from[i]) { pts.push({ x: x0 + (i % nx) * cs, z: z0 + ((i / nx) | 0) * cs }); if (i === start) break; }
+  pts.reverse();
+  if (from[goal] === -1 && goal !== start) return [{ x: gx, z: gz }];   // unreachable: walk straight
+  const out = [];   // string-pull: keep only the corners
+  let a = { x: sx, z: sz };
+  for (let i = 1; i < pts.length; i++) if (!navLos(a.x, a.z, pts[i].x, pts[i].z)) { out.push(pts[i - 1]); a = pts[i - 1]; }
+  out.push(pts[pts.length - 1] || { x: gx, z: gz });
+  return out;
+}
+function faceYaw(obj, yaw, dt, k = 6) {
+  let d = yaw - obj.rotation.y;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  obj.rotation.y += d * Math.min(1, dt * k);
+}
+function robotWalkTo(tx, tz, speed, dt) {
+  const dx = tx - robot.position.x, dz = tz - robot.position.z, d = Math.hypot(dx, dz);
+  if (d < 0.02) return true;
+  const st = Math.min(d, speed * dt);
+  robot.position.x += dx / d * st; robot.position.z += dz / d * st;
+  faceYaw(robot, Math.atan2(dx, dz), dt, 7);
+  return d - st < 0.02;
+}
+
+// ---------------------------------------------------------------------
+//  DeliverySystem — the house quietly brings whatever you ask for.
+// ---------------------------------------------------------------------
+const IG = {}, IMT = {};
+const igeo = (k, make) => IG[k] || (IG[k] = make());
+const imat = (hex, o = {}) => { const k = hex + JSON.stringify(o); return IMT[k] || (IMT[k] = std(hex, o)); };
+const cyl = (rt, rb, h, seg = 16) => igeo(`c${rt},${rb},${h},${seg}`, () => new THREE.CylinderGeometry(rt, rb, h, seg));
+const bx = (w, h, d) => igeo(`b${w},${h},${d}`, () => new THREE.BoxGeometry(w, h, d));
+const sph = (r, w = 12, h = 8) => igeo(`s${r},${w},${h}`, () => new THREE.SphereGeometry(r, w, h));
+const itemGlass = keepAlpha(new THREE.MeshStandardMaterial({ color: 0xeef6ff, transparent: true, opacity: 0.3, roughness: 0.08, metalness: 0.1, depthWrite: false }));
+const flameMat = new THREE.MeshBasicMaterial({ color: 0xffc36b, toneMapped: false });
+function part(g, geo, mat, x, y, z, cast = true) {
+  const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = cast; m.receiveShadow = true; g.add(m); return m;
+}
+const plate = (g, r = 0.11) => part(g, cyl(r, r * 0.8, 0.012, 22), imat(0xfbf6ee, { roughness: 0.35 }), 0, 0.006, 0);
+const B = {
+  glass(liquid) { const g = new THREE.Group(); part(g, cyl(0.026, 0.023, 0.07), imat(liquid, { roughness: 0.2 }), 0, 0.036, 0); const gl = part(g, cyl(0.032, 0.027, 0.11), itemGlass, 0, 0.055, 0, false); gl.renderOrder = 3; return g; },
+  mug(liquid) { const g = new THREE.Group(); part(g, cyl(0.042, 0.037, 0.095, 18), M.white, 0, 0.0475, 0); part(g, cyl(0.038, 0.038, 0.004, 18), imat(liquid, { roughness: 0.15 }), 0, 0.087, 0); part(g, igeo('mugH', () => new THREE.TorusGeometry(0.024, 0.007, 8, 14)), M.white, 0.047, 0.05, 0); return g; },
+  sandwich() { const g = new THREE.Group(); plate(g); const s = new THREE.Group(); s.rotation.y = 0.5; g.add(s); part(s, bx(0.1, 0.018, 0.1), imat(0xecc690), 0, 0.021, 0); part(s, bx(0.106, 0.006, 0.106), imat(0x8fc46a), 0, 0.033, 0); part(s, bx(0.1, 0.004, 0.1), imat(0xf1a0a0), 0, 0.038, 0); part(s, bx(0.1, 0.018, 0.1), imat(0xecc690), 0, 0.049, 0); return g; },
+  soup() { const g = new THREE.Group(); plate(g, 0.1); part(g, cyl(0.075, 0.045, 0.05, 20), M.white, 0, 0.037, 0); part(g, cyl(0.07, 0.07, 0.004, 20), imat(0xe39a55, { roughness: 0.2 }), 0, 0.058, 0); return g; },
+  fruit() { const g = new THREE.Group(); plate(g, 0.09); for (const [x, z, c] of [[-0.03, 0, 0xd9434e], [0.035, 0.012, 0x9cc45a], [0, -0.035, 0xd9434e]]) { part(g, sph(0.032), imat(c, { roughness: 0.4 }), x, 0.043, z); part(g, cyl(0.002, 0.002, 0.02, 5), M.trunk, x, 0.078, z); } return g; },
+  icecream() { const g = new THREE.Group(); part(g, cyl(0.06, 0.035, 0.045, 18), imat(0xaed6ee, { roughness: 0.4 }), 0, 0.0225, 0); part(g, sph(0.03), imat(0xfff1c8), -0.015, 0.055, 0); part(g, sph(0.03), imat(0xf49ab8), 0.02, 0.06, 0.008); return g; },
+  cake() { const g = new THREE.Group(); plate(g, 0.15); part(g, cyl(0.105, 0.105, 0.075, 28), imat(0xf5dcc0), 0, 0.049, 0); part(g, cyl(0.108, 0.108, 0.016, 28), imat(0xf49ab8, { roughness: 0.5 }), 0, 0.093, 0); for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; part(g, sph(0.012, 8, 6), imat(0xc8283a, { roughness: 0.3 }), Math.cos(a) * 0.078, 0.107, Math.sin(a) * 0.078); } part(g, cyl(0.005, 0.005, 0.05, 8), M.white, 0, 0.126, 0); part(g, sph(0.007, 8, 6), flameMat, 0, 0.157, 0, false).scale.y = 1.6; return g; },
+  cookies() { const g = new THREE.Group(); plate(g); for (const [x, y, z] of [[-0.04, 0.017, 0.02], [0.03, 0.017, 0.035], [0.035, 0.017, -0.035], [-0.02, 0.017, -0.04], [0, 0.027, 0], [0.005, 0.036, 0.01]]) part(g, cyl(0.026, 0.026, 0.009, 14), imat(0xc98a4b), x, y, z); return g; },
+  cupcakes() { const g = new THREE.Group(); plate(g, 0.09); for (const x of [-0.035, 0.035]) { part(g, cyl(0.028, 0.02, 0.034, 14), imat(0xf7b98e), x, 0.029, 0); part(g, sph(0.03), imat(0xfff3f8, { roughness: 0.5 }), x, 0.05, 0).scale.y = 0.7; } return g; },
+  loaf() { const g = new THREE.Group(); part(g, bx(0.26, 0.015, 0.14), M.woodLight, 0, 0.0075, 0); const l = part(g, igeo('loaf', () => new THREE.CapsuleGeometry(0.045, 0.12, 4, 12)), imat(0xc98a4b), 0, 0.05, 0); l.rotation.z = Math.PI / 2; l.scale.set(1, 1, 0.8); return g; },
+  pie() { const g = new THREE.Group(); plate(g, 0.13); part(g, cyl(0.11, 0.1, 0.03, 24), imat(0xd8a060), 0, 0.027, 0); part(g, cyl(0.1, 0.1, 0.004, 24), imat(0xa2412e, { roughness: 0.3 }), 0, 0.043, 0); return g; },
+  towel() { const g = new THREE.Group(); part(g, bx(0.24, 0.035, 0.16), imat(0x9fd8d0, { roughness: 1 }), 0, 0.018, 0); part(g, bx(0.24, 0.035, 0.16), imat(0xf8efe0, { roughness: 1 }), 0.006, 0.053, 0.004).rotation.y = 0.06; return g; },
+  blanket() { const g = new THREE.Group(); part(g, bx(0.56, 0.06, 0.36), imat(0xbdb1e4, { roughness: 1 }), 0, 0.03, 0); part(g, bx(0.56, 0.03, 0.1), imat(0xd3caf0, { roughness: 1 }), 0, 0.075, -0.1); return g; },
+  pillow() { const g = new THREE.Group(); const p = part(g, bx(0.34, 0.1, 0.3), imat(0xf7b98e, { roughness: 1 }), 0, 0.05, 0); p.rotation.y = 0.2; return g; },
+  book() { const g = new THREE.Group(); part(g, bx(0.15, 0.032, 0.21), pick(bookMats), 0, 0.016, 0); part(g, bx(0.143, 0.026, 0.2), imat(0xf3ead8), 0.005, 0.016, 0); return g; },
+  tissues() { const g = new THREE.Group(); part(g, bx(0.13, 0.07, 0.1), imat(0xaed6ee), 0, 0.035, 0); part(g, bx(0.035, 0.03, 0.004), M.white, 0, 0.083, 0); return g; },
+  candle() { const g = new THREE.Group(); plate(g, 0.06); part(g, cyl(0.03, 0.03, 0.08, 18), imat(0xfbf0dc), 0, 0.052, 0); part(g, sph(0.008, 8, 6), flameMat, 0, 0.1, 0, false).scale.y = 1.7; return g; },
+  flowers() { const g = new THREE.Group(); part(g, cyl(0.035, 0.045, 0.13, 14), imat(0xaed6ee, { roughness: 0.3 }), 0, 0.065, 0); const cols = [0xf49ab8, 0xf9dc8e, 0xfff7ec, 0xcdb0f2, 0xf7b98e]; for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2; part(g, cyl(0.002, 0.002, 0.09, 4), imat(0x72945f), Math.cos(a) * 0.012, 0.16, Math.sin(a) * 0.012); part(g, sph(0.022, 8, 6), imat(cols[i], { roughness: 0.6 }), Math.cos(a) * 0.03, 0.2 + (i % 2) * 0.02, Math.sin(a) * 0.03); } return g; },
+  medicine() { const g = new THREE.Group(); part(g, cyl(0.022, 0.022, 0.07, 12), imat(0xe08a3c, { roughness: 0.3 }), -0.04, 0.035, 0); part(g, cyl(0.024, 0.024, 0.018, 12), M.white, -0.04, 0.079, 0); g.add(B.glass(0xbfe3ff).translateX(0.04)); return g; },
+};
+const ITEMS = {
+  cake:     { kind: 'cake',  re: /\b(cake|birthday)\b/, delay: 28, name: 'a cake', build: () => B.cake(), cues: [[2, 'cupboard', 'kitchen'], [4.5, 'mixer', 'kitchen'], [9, 'oven', 'kitchen'], [25, 'ovenDing', 'kitchen'], [26.5, 'lift', 'lift']], use: 'You cut a slice. It\'s still warm. Ivy watches every bite.' },
+  baked:    { kind: 'food',  re: /\b(cookies?|biscuits?|bread|muffins?|cupcakes?|pies?|croissants?|brownies?|pastry|pastries|baked|bake)\b/, delay: 26, name: 'something from the oven', build: w => /muffin|cupcake/.test(w) ? B.cupcakes() : /bread|croissant/.test(w) ? B.loaf() : /pie/.test(w) ? B.pie() : B.cookies(), cues: [[2, 'cupboard', 'kitchen'], [5, 'mixer', 'kitchen'], [9, 'oven', 'kitchen'], [23.5, 'ovenDing', 'kitchen'], [24.5, 'lift', 'lift']], use: 'Warm from the oven. Ivy hums while you eat.' },
+  icecream: { kind: 'food',  re: /\b(ice ?cream|gelato|dessert)\b/, delay: 10, name: 'ice cream', build: () => B.icecream(), cues: [[1.5, 'fridge', 'kitchen'], [5, 'clink', 'kitchen']], use: 'Ice cream. For a moment, the room feels cooler.' },
+  juice:    { kind: 'drink', re: /\b(juice|lemonade|smoothie)\b/, delay: 9, name: 'some juice', build: () => B.glass(0xf7a53a), cues: [[1.5, 'fridge', 'kitchen'], [4, 'pour', 'kitchen'], [6.5, 'clink', 'kitchen']], use: 'Freshly squeezed. Ivy looks very proud of herself.' },
+  milk:     { kind: 'drink', re: /\b(milk)\b/, delay: 9, name: 'some milk', build: () => B.glass(0xf8f5ec), cues: [[1.5, 'fridge', 'kitchen'], [4, 'pour', 'kitchen'], [6.5, 'clink', 'kitchen']], use: 'Cold milk. Like when you were little.' },
+  cocoa:    { kind: 'drink', re: /\b(hot chocolate|cocoa)\b/, delay: 14, name: 'hot chocolate', build: () => B.mug(0x6b3a22), cues: [[1, 'cupboard', 'kitchen'], [3, 'kettle', 'kitchen'], [9.5, 'pour', 'kitchen'], [12, 'clink', 'kitchen']], use: 'Hot chocolate. Too hot, really. Everything is too hot.' },
+  coffee:   { kind: 'drink', re: /\b(coffee|espresso|latte|cappuccino|mocha)\b/, delay: 14, name: 'coffee', build: () => B.mug(0x4a2a17), cues: [[1, 'cupboard', 'kitchen'], [3, 'grinder', 'kitchen'], [8, 'pour', 'kitchen'], [11.5, 'clink', 'kitchen']], use: 'Fresh coffee. Much better than the three-day-old cup.' },
+  tea:      { kind: 'drink', re: /\b(tea|chai|kettle)\b/, delay: 14, name: 'tea', build: () => B.mug(0xb5733a), cues: [[1, 'cupboard', 'kitchen'], [2.5, 'kettle', 'kitchen'], [9, 'pour', 'kitchen'], [11.5, 'clink', 'kitchen']], use: 'Warm tea, exactly how you like it. You never told anyone how you like it.' },
+  water:    { kind: 'drink', re: /\b(water|thirsty|parched)\b/, delay: 9, name: 'some water', build: () => B.glass(0xbfe3ff), cues: [[1.4, 'cupboard', 'kitchen'], [3.4, 'tap', 'kitchen'], [6.4, 'clink', 'kitchen']], use: 'You drink the water. Cold, clean… with the faintest metallic aftertaste.' },
+  soup:     { kind: 'food',  re: /\b(soup|noodles|ramen|broth)\b/, delay: 14, name: 'soup', build: () => B.soup(), cues: [[1, 'cupboard', 'kitchen'], [3, 'microwave', 'kitchen'], [11.5, 'clink', 'kitchen']], use: 'Soup. It warms you from the inside. The house is warm enough already.' },
+  fruit:    { kind: 'food',  re: /\b(fruit|apples?|bananas?|grapes|snacks?)\b/, delay: 8, name: 'some fruit', build: () => B.fruit(), cues: [[1.5, 'fridge', 'kitchen'], [5, 'clink', 'kitchen']], use: 'A crisp apple. Crunch.' },
+  food:     { kind: 'food',  re: /\b(food|hungry|starving|eat|meal|sandwich|lunch|dinner|breakfast)\b/, delay: 15, name: 'something to eat', build: () => B.sandwich(), cues: [[1.5, 'fridge', 'kitchen'], [4, 'chop', 'kitchen'], [7, 'chop', 'kitchen'], [12.5, 'clink', 'kitchen']], use: 'A neat sandwich, crusts cut off. Exactly how you had them as a child.' },
+  towel:    { kind: 'towel', re: /\b(towels?)\b/, delay: 9, name: 'a towel', build: () => B.towel(), cues: [[1.5, 'closet', 'closet'], [4, 'steps', 'closet']], use: 'A soft towel, warm like it just came out of the dryer.' },
+  blanket:  { kind: 'soft',  re: /\b(blanket|throw|duvet|quilt)\b/, delay: 10, name: 'a blanket', build: () => B.blanket(), cues: [[1.5, 'closet', 'closet'], [4.5, 'steps', 'closet']], use: 'You wrap the blanket around yourself. You don\'t need it. It\'s so warm already.' },
+  pillow:   { kind: 'soft',  re: /\b(pillows?)\b/, delay: 10, name: 'a pillow', build: () => B.pillow(), cues: [[1.5, 'closet', 'closet'], [4.5, 'steps', 'closet']], use: 'A plump pillow. It smells like your old room.' },
+  book:     { kind: 'book',  re: /\b(books?|novel|something to read|magazines?)\b/, delay: 9, name: 'a book', build: () => B.book(), cues: [[2, 'closet', 'closet'], [5, 'steps', 'closet']], use: '"How to Be Happy at Home." Someone has underlined every sentence.' },
+  tissues:  { kind: 'small', re: /\b(tissues?|napkins?)\b/, delay: 10, name: 'tissues', build: () => B.tissues(), cues: [[2, 'closet', 'closet'], [5, 'steps', 'closet']], use: 'You take a tissue. Ivy asks, very gently, if you\'ve been crying.' },
+  candle:   { kind: 'small', re: /\b(candles?)\b/, delay: 11, name: 'a candle', build: () => B.candle(), cues: [[2, 'closet', 'closet'], [6, 'steps', 'closet']], use: 'A vanilla candle. The flame doesn\'t flicker, even when you breathe on it.' },
+  flowers:  { kind: 'small', re: /\b(flowers?|vase|bouquet|roses?)\b/, delay: 12, name: 'flowers', build: () => B.flowers(), cues: [[2, 'closet', 'closet'], [6, 'steps', 'closet']], use: 'Fresh flowers. From where? The garden is on the other side of a locked window.' },
+  medicine: { kind: 'small', re: /\b(medicine|pills?|painkillers?|aspirin|paracetamol|ibuprofen|headache)\b/, delay: 10, name: 'something for the pain', build: () => B.medicine(), cues: [[1.5, 'cupboard', 'kitchen'], [3.5, 'tap', 'kitchen'], [6.5, 'clink', 'kitchen']], use: 'Painkillers and a glass of water. Ivy watches until you swallow.' },
+};
+const CONSUMABLE = { drink: 1, food: 1, cake: 1 };
+const NOUN = { cake: 'cake', baked: 'treats', icecream: 'ice cream', juice: 'juice', milk: 'milk', cocoa: 'hot chocolate', coffee: 'coffee', tea: 'tea',
+  water: 'water', soup: 'soup', fruit: 'fruit', food: 'sandwich', towel: 'towel', blanket: 'blanket', pillow: 'pillow', book: 'book',
+  tissues: 'tissues', candle: 'candle', flowers: 'flowers', medicine: 'pills' };
+const SLOTS = [
+  { p: [0.48, 0.425, 0.62],  kinds: ['drink', 'food', 'small', 'book'],               where: 'It\'s on the coffee table.' },
+  { p: [0.02, 0.425, 0.62],  kinds: ['drink', 'food', 'small', 'cake'],               where: 'It\'s on the coffee table.' },
+  { p: [-0.45, 0.425, 0.93], kinds: ['drink', 'food', 'small', 'book'],               where: 'It\'s on the coffee table.' },
+  { p: [1.67, 0.565, -0.31], kinds: ['drink', 'small', 'book'],                       where: 'It\'s by the lamp.' },
+  { p: [0.62, 0.42, 1.79],   kinds: ['drink', 'food', 'small', 'towel', 'book', 'cake', 'soft'], where: 'It\'s on the cabinet, under the painting.' },
+  { p: [1.25, 0.42, 1.79],   kinds: ['drink', 'food', 'small', 'towel', 'book', 'cake', 'soft'], where: 'It\'s on the cabinet, under the painting.' },
+  { p: [1.85, 0.42, 1.79],   kinds: ['drink', 'food', 'small', 'towel', 'book', 'cake'],        where: 'It\'s on the cabinet, under the painting.' },
+  { p: [2.75, 0.45, 0.95],   kinds: ['drink', 'small', 'book', 'towel'],              where: 'It\'s on the TV console.' },
+  { p: [-0.6, 0.495, -0.22], kinds: ['towel', 'book', 'soft'],                        where: 'It\'s on the sofa.' },
+  { p: [0.05, 0.495, -0.22], kinds: ['towel', 'book', 'soft'],                        where: 'It\'s on the sofa.' },
+].map(s => Object.assign(s, { v: new THREE.Vector3(...s.p), item: null }));
+const CUE = {
+  cupboard: p => { tone(95, 0.18, 'triangle', 0.09, 0, p); noiseBurst({ dur: 0.12, vol: 0.06, type: 'lowpass', freq: 500, pos: p }); noiseBurst({ dur: 0.5, vol: 0.05, type: 'bandpass', freq: 420, freq2: 330, q: 14, delay: 0.15, pos: p }); },
+  fridge: p => { noiseBurst({ dur: 0.3, vol: 0.06, type: 'lowpass', freq: 300, pos: p }); hum(62, 1.8, 0.02, p, 0.1); tone(2600, 0.3, 'sine', 0.02, 1.2, p); },
+  tap: p => noiseBurst({ dur: 1.9, vol: 0.05, type: 'bandpass', freq: 1300, freq2: 1900, q: 1.5, attack: 0.15, pos: p }),
+  pour: p => noiseBurst({ dur: 1.1, vol: 0.045, type: 'bandpass', freq: 900, freq2: 1600, q: 2, attack: 0.08, pos: p }),
+  clink: p => { tone(2650, 0.35, 'sine', 0.05, 0, p); tone(3980, 0.25, 'sine', 0.025, 0.01, p); },
+  kettle: p => { noiseBurst({ dur: 4.2, vol: 0.035, type: 'bandpass', freq: 500, freq2: 2600, q: 1.2, attack: 3.4, pos: p }); tone(1900, 1.2, 'sine', 0.014, 3.4, p, 2300); },
+  grinder: p => { noiseBurst({ dur: 2.2, vol: 0.05, type: 'bandpass', freq: 1400, q: 1.5, attack: 0.1, pos: p }); hum(180, 2.2, 0.012, p, 0, 900); },
+  chop: p => { for (let i = 0; i < 4; i++) { tone(170, 0.06, 'square', 0.03, i * 0.28, p); noiseBurst({ dur: 0.04, vol: 0.03, type: 'highpass', freq: 2000, delay: i * 0.28, pos: p }); } },
+  microwave: p => { hum(118, 3.4, 0.03, p); for (let i = 0; i < 3; i++) tone(1900, 0.09, 'square', 0.025, 3.6 + i * 0.25, p); },
+  mixer: p => { noiseBurst({ dur: 2.8, vol: 0.04, type: 'bandpass', freq: 480, freq2: 540, q: 4, attack: 0.2, pos: p }); hum(160, 2.8, 0.02, p, 0, 700); },
+  oven: p => { CUE.cupboard(p); hum(70, 2.6, 0.02, p, 0.4); noiseBurst({ dur: 2.4, vol: 0.02, type: 'lowpass', freq: 250, delay: 0.5, attack: 0.8, pos: p, brown: true }); },
+  ovenDing: p => tone(2093, 1.8, 'triangle', 0.05, 0, p),
+  steps: p => { for (let i = 0; i < 4; i++) { tone(70, 0.14, 'sine', 0.08, i * 0.48, p, 48); noiseBurst({ dur: 0.05, vol: 0.02, type: 'lowpass', freq: 900, delay: i * 0.48, pos: p }); } },
+  closet: p => { noiseBurst({ dur: 0.6, vol: 0.05, type: 'bandpass', freq: 330, freq2: 240, q: 12, pos: p }); noiseBurst({ dur: 0.7, vol: 0.03, type: 'bandpass', freq: 2600, q: 1, delay: 0.5, attack: 0.2, pos: p }); },
+  lift: p => { hum(55, 2.2, 0.035, p, 0, 200); tone(1318.5, 0.6, 'sine', 0.02, 2.1, p); },
+  chime: p => { tone(1318.5, 1.2, 'sine', 0.03, 0, p); tone(1975.5, 1.4, 'sine', 0.022, 0.12, p); },
+};
+const CUE_POS = { kitchen: KITCHEN, closet: CLOSET, lift: LIFT };
+// ---------------------------------------------------------------------
+//  Fetching — "When the player asks you to bring or make something, you go
+//  to the kitchen and come back with it." Ivy walks out through the door,
+//  you hear her cooking, she walks back carrying it and sets it down by you.
+// ---------------------------------------------------------------------
+const DOOR_IN = { x: -2.2, z: 1.45 }, KITCHEN_SPOT = { x: -2.2, z: 3.9 }, KITCHEN_SND = { x: -2.2, y: 1.1, z: 3.8 };
+const ARRIVE = [
+  ['Here you go~ Made with love!', 'Ta-da! All for you~', 'Here! Careful, it\'s still warm~'],
+  ['Here. …You\'re still here. Good.', 'Here you go. You didn\'t go anywhere, right?'],
+  ['Here.'],
+  ['Here. Eat it.'],
+];
+const delivery = {
+  job: null, phase: 'idle', path: null, pi: 0, t: 0, carry: null, slot: null, from: new THREE.Vector3(), delivered: 0, cues: [], cook: 0, repathT: 0,
+  request(key, word) {
+    const def = ITEMS[key];
+    if (this.job) return `I'm already making your ${NOUN[this.job.key]}! Be patient~`;
+    if (!SLOTS.some(s => !s.item)) return 'There\'s no room left to put anything! Finish something first?';
+    const again = robotCtl.lastFetchKey === key;
+    robotCtl.lastFetchKey = key;
+    this.job = { key, def, word };
+    this.startPath(DOOR_IN); this.phase = 'toDoor';
+    const a = robotCtl.anger;
+    let line = a >= 2 ? pick(['Fine.', '…Fine. Stay there.'])
+      : a === 1 ? pick(['Okay… I\'ll be right back. Don\'t go anywhere, okay?', 'Sure. …You\'ll still be here when I get back, right?'])
+      : pick([`Of course! I'll make you ${def.name}~`, 'Yay, I love doing things for you! Be right back~']);
+    if (again) line = 'Again? What are you up to? …' + line;
+    return line;
+  },
+  startPath(goal) { this.path = navPath(robot.position.x, robot.position.z, goal.x, goal.z); this.pi = 0; },
+  followPath(dt, speed) {
+    if (!this.path || this.pi >= this.path.length) return true;
+    const p = this.path[this.pi];
+    if (robotWalkTo(p.x, p.z, speed, dt)) this.pi++;
+    return this.pi >= this.path.length;
+  },
+  update(dt) {
+    switch (this.phase) {
+      case 'toDoor':
+        if (this.followPath(dt, 1.1)) { setDoor(true); this.phase = 'exit'; this.t = 0; }
+        break;
+      case 'exit':
+        this.t += dt;
+        if (this.t > 0.6 && robotWalkTo(KITCHEN_SPOT.x, KITCHEN_SPOT.z, 1.0, dt)) {
+          robot.visible = false; setDoor(false);
+          this.phase = 'cooking'; this.t = 0;
+          const d = this.job.def;
+          this.cook = THREE.MathUtils.clamp(d.delay * 0.5, 4, 14);        // a few minutes' game: don't make them wait
+          this.cues = d.cues.map(([at, fn]) => ({ at: at * this.cook / d.delay, fn, done: false }));
+        }
+        break;
+      case 'cooking':
+        this.t += dt;
+        for (const c of this.cues) if (!c.done && this.t >= c.at) { c.done = true; CUE[c.fn === 'lift' ? 'clink' : c.fn](KITCHEN_SND); }
+        if (this.t >= this.cook) {
+          setDoor(true); this.phase = 'enter'; this.t = 0;
+          this.carry = this.job.def.build(this.job.word || '');
+          this.carry.position.set(0, 0.9, 0.3);
+          robot.add(this.carry);
+        }
+        break;
+      case 'enter':
+        this.t += dt;
+        if (this.t > 0.6) {
+          robot.visible = true;
+          if (robotWalkTo(DOOR_IN.x, DOOR_IN.z, 1.0, dt)) { setDoor(false); this.phase = 'toPlayer'; this.repathT = 0; }
+        }
+        break;
+      case 'toPlayer': {
+        if ((this.repathT -= dt) <= 0) { this.repathT = 1; this.startPath(player); }
+        const d = Math.hypot(player.x - robot.position.x, player.z - robot.position.z);
+        if (d < 1.3 || this.followPath(dt, 1.1)) this.place();
+        break;
+      }
+      case 'placing': {
+        this.t += dt;
+        const e = smooth(Math.min(1, this.t / 0.5));
+        this.carry.position.lerpVectors(this.from, this.slot.v, e);
+        faceYaw(robot, Math.atan2(this.slot.v.x - robot.position.x, this.slot.v.z - robot.position.z), dt, 6);
+        if (e >= 1) this.finish();
+        break;
+      }
+    }
+  },
+  place() {
+    // nearest free surface to where she's standing
+    let best = null, bd = Infinity;
+    for (const s of SLOTS) if (!s.item) { const d = Math.hypot(s.v.x - robot.position.x, s.v.z - robot.position.z); if (d < bd) { bd = d; best = s; } }
+    if (!best) { this.abort(); return; }
+    this.slot = best; best.item = this.carry;
+    scene.attach(this.carry);
+    this.from.copy(this.carry.position);
+    this.phase = 'placing'; this.t = 0;
+  },
+  finish() {
+    const c = this.carry, def = this.job.def, key = this.job.key;
+    c.position.copy(this.slot.v);
+    const data = { type: 'item', slot: this.slot, def, obj: c, label: () => (CONSUMABLE[def.kind] ? 'Have the ' : 'Take the ') + NOUN[key] };
+    setInteract(c, data);
+    tone(420, 0.08, 'triangle', 0.05, 0, this.slot.v);
+    this.delivered++;
+    robotCtl.thanksUntil = playT + 60;        // thanking her now counts as "letting her take care of you"
+    voice.say(pick(ARRIVE[Math.min(3, robotCtl.anger)]), { ms: 4000 });
+    this.job = null; this.carry = null; this.slot = null; this.phase = 'idle';
+  },
+  abort() {
+    if (this.carry) { this.carry.removeFromParent(); if (this.slot) this.slot.item = null; }
+    if (!robot.visible || robot.position.z > 1.72) { robot.visible = true; robot.position.set(DOOR_IN.x, 0, DOOR_IN.z); }
+    setDoor(false);
+    this.job = null; this.carry = null; this.slot = null; this.phase = 'idle';
+  },
+  consume(d) {
+    toast((CONSUMABLE[d.def.kind] ? '🍽️ ' : '✨ ') + d.def.use, 5500);
+    d.obj.traverse(o => { const i = rayTargets.indexOf(o); if (i >= 0) rayTargets.splice(i, 1); });
+    d.obj.removeFromParent();
+    d.slot.item = null;
+    if (CONSUMABLE[d.def.kind]) noiseBurst({ dur: 0.25, vol: 0.03, type: 'bandpass', freq: 700, q: 2 });
+  },
+};
+const REQUEST_RE = /\b(can i (have|get)|could i (have|get)|may i (have|get)|bring|get me|fetch|give me|i'?d like|i would like|i want|i need|make me|pass me|(can|could|will|would) you (get|make|bring|fetch|bake|cook)|i'?m (hungry|thirsty|starving)|hungry|thirsty|starving|please|pls|plz)\b/;
+
+// ---------------------------------------------------------------------
+//  A few unprompted lines — rare (60 s apart), never hints.
+// ---------------------------------------------------------------------
+const AMBIENT = [
+  { when: () => playT > 60 && robotCtl.anger === 0, offer: 'tea', line: 'Would you like some tea? I love making you things~' },
+  { when: () => playT > 170 && robotCtl.anger === 0, line: 'I was just thinking… we could watch a movie tonight. Just us. On the sofa.' },
+  { when: () => robotCtl.anger >= 2 && environment.cur.heat > 0.4, line: 'Is it warm? The panel says twenty-one. It\'s always twenty-one.' },
+];
+const personality = {
+  done: new Set(),
+  update() {
+    if (voice.busy || chatOpen || robotCtl.over || robotCtl.freed || delivery.job || playT - voice.lastSpoke < 60) return;
+    for (let i = 0; i < AMBIENT.length; i++) {
+      const a = AMBIENT[i];
+      if (this.done.has(i) || !a.when()) continue;
+      this.done.add(i);
+      if (a.offer) robotCtl.offer = { item: a.offer, until: playT + 30 };
+      voice.say(a.line, { ms: 5000 });
+      return;
+    }
+  },
+};
+
+// ---------------------------------------------------------------------
+//  MusicManager — procedural, adaptive. Warm pad chords + a sparse, slightly
+//  detuned music box when calm; the melody thins out and a low beating drone,
+//  filtered noise and a faint heartbeat take over as tension rises. No loop
+//  files, so it never repeats the same bar.
+// ---------------------------------------------------------------------
+const mtof = m => 440 * 2 ** ((m - 69) / 12);
+const WARM = [[53, 57, 60, 64], [57, 60, 64, 67], [48, 55, 59, 64], [52, 55, 59, 62]];   // Fmaj7 · Am7 · Cmaj7 · Em7
+const DARK = [[45, 48, 52, 53], [41, 44, 48, 51], [46, 49, 53, 54], [44, 47, 50, 53]];   // clouded minor clusters
+const music = {
+  started: false, tension: 0, target: 0, pulse: 0, ci: 0, chord: WARM[0], pushT: 0,
+  start() {
+    if (this.started) return; this.started = true;
+    const c = audio.ctx, now = c.currentTime;
+    this.out = c.createGain(); this.out.gain.setValueAtTime(0, now); this.out.gain.linearRampToValueAtTime(1, now + 6); this.out.connect(audio.music);
+    this.padF = c.createBiquadFilter(); this.padF.type = 'lowpass'; this.padF.Q.value = 0.4; this.padF.frequency.value = 1500;
+    this.padG = c.createGain(); this.padG.gain.value = 0.85;
+    this.padF.connect(this.padG).connect(this.out);
+    const ps = c.createGain(); ps.gain.value = 0.35; this.padG.connect(ps).connect(audio.reverb);
+    this.melG = c.createGain(); this.melG.gain.value = 1; this.melG.connect(this.out);
+    const ms = c.createGain(); ms.gain.value = 0.7; this.melG.connect(ms).connect(audio.reverb);
+    // drone: two detuned low sines beat against each other (~0.7 Hz), plus a fifth
+    this.droneF = c.createBiquadFilter(); this.droneF.type = 'lowpass'; this.droneF.frequency.value = 260;
+    this.droneG = c.createGain(); this.droneG.gain.value = 0;
+    this.droneF.connect(this.droneG).connect(this.out);
+    for (const [f, type, v] of [[55, 'sine', 1], [55.7, 'sine', 1], [82.4, 'triangle', 0.3]]) {
+      const o = c.createOscillator(); o.type = type; o.frequency.value = f;
+      const g = c.createGain(); g.gain.value = v; o.connect(g).connect(this.droneF); o.start();
+    }
+    // tension bed: brown noise through a slowly wandering band-pass
+    const n = c.createBufferSource(); n.buffer = audio.brownBuf; n.loop = true;
+    this.bp = c.createBiquadFilter(); this.bp.type = 'bandpass'; this.bp.frequency.value = 380; this.bp.Q.value = 0.9;
+    this.noiseG = c.createGain(); this.noiseG.gain.value = 0;
+    n.connect(this.bp).connect(this.noiseG).connect(this.out); n.start();
+    const lfo = c.createOscillator(); lfo.frequency.value = 0.06; const lg = c.createGain(); lg.gain.value = 160; lfo.connect(lg).connect(this.bp.frequency); lfo.start();
+    this.nextChord = now + 0.5; this.nextStep = now + 2.5; this.nextBeat = now + 1;
+    setInterval(() => this.tick(), 150);
+  },
+  tick() {
+    const c = audio.ctx; if (!c || c.state !== 'running') return;
+    const now = c.currentTime, T = this.tension;
+    if (this.nextChord < now - 1) { this.nextChord = now + 0.2; this.nextStep = now + 0.5; this.nextBeat = now + 0.5; }   // resumed after a stall
+    while (this.nextChord < now + 0.7) { this.playChord(this.nextChord, T); this.nextChord += 9.6; }
+    while (this.nextStep < now + 0.5) { this.playNote(this.nextStep, T); this.nextStep += 0.48; }
+    while (this.nextBeat < now + 0.5) { if (T > 0.72) this.heartbeat(this.nextBeat, T); this.nextBeat += T > 0.9 ? 1.25 : 1.6; }
+  },
+  playChord(t, T) {
+    const c = audio.ctx, prog = T > 0.55 ? DARK : WARM;
+    this.chord = prog[this.ci++ % prog.length];
+    for (const m of this.chord) {
+      for (const [type, det] of [['triangle', 0], ['sine', 5]]) {
+        const o = c.createOscillator(), g = c.createGain();
+        o.type = type; o.frequency.value = mtof(m); o.detune.value = det + (T > 0.3 ? rand(-10, 10) * T : 0);
+        g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.022, t + 3.2);
+        g.gain.setValueAtTime(0.022, t + 7.5); g.gain.exponentialRampToValueAtTime(0.0001, t + 11.5);
+        o.connect(g).connect(this.padF); o.start(t); o.stop(t + 11.6);
+      }
+    }
+  },
+  playNote(t, T) {
+    const dens = robotCtl.escaped ? 0.4 : 0.3 * (1 - T) ** 2 + 0.015;
+    if (Math.random() > dens) return;
+    const c = audio.ctx;
+    const base = this.chord[(Math.random() * this.chord.length) | 0] + (T > 0.55 ? 0 : Math.random() < 0.5 ? 12 : 24);
+    const f = mtof(base), vol = 0.04 * (1 - T * 0.5);
+    const detune = (T > 0.15 && Math.random() < T * 0.7) ? -rand(20, 48) : 0;     // the music box goes subtly out of tune
+    for (const [mult, v] of [[1, 1], [2, 0.3], [3.01, 0.08]]) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.frequency.value = f * mult; o.detune.value = detune;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol * v, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
+      o.connect(g).connect(this.melG); o.start(t); o.stop(t + 2.5);
+    }
+  },
+  heartbeat(t, T) {
+    const c = audio.ctx, v = 0.25 * Math.min(1, (T - 0.7) / 0.3);
+    for (const [dt, k] of [[0, 1], [0.28, 0.6]]) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.frequency.setValueAtTime(60, t + dt); o.frequency.exponentialRampToValueAtTime(38, t + dt + 0.2);
+      g.gain.setValueAtTime(0.0001, t + dt); g.gain.linearRampToValueAtTime(v * k, t + dt + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.3);
+      o.connect(g).connect(this.out); o.start(t + dt); o.stop(t + dt + 0.32);
+    }
+  },
+  update(dt) {
+    if (!this.started) return;
+    this.pulse = Math.max(0, this.pulse - dt * 0.07);
+    this.target = robotCtl.escaped || isOutside() ? 0 : THREE.MathUtils.clamp(robotCtl.moodT / 3 * 0.85 + environment.cur.heat * 0.25 + this.pulse, 0, 1);
+    this.tension = approach(this.tension, this.target, 0.35, dt);
+    if ((this.pushT -= dt) > 0) return;
+    this.pushT = 0.25;
+    const now = audio.ctx.currentTime, T = this.tension;
+    this.padF.frequency.setTargetAtTime(1600 - 1150 * T, now, 1.2);
+    this.padG.gain.setTargetAtTime(0.85 - 0.55 * T, now, 1.2);
+    this.droneG.gain.setTargetAtTime(T > 0.08 ? 0.006 + 0.12 * T * T : 0, now, 1.5);
+    this.noiseG.gain.setTargetAtTime(Math.max(0, T - 0.45) * 0.14, now, 1.5);
+  },
+};
+
+// ---------------------------------------------------------------------
+//  Ambience — mains hum (dies with the power), HVAC that works harder as it
+//  heats up, sparse house creaks, birdsong when the window is open.
+// ---------------------------------------------------------------------
+const ambience = {
+  started: false, creakT: 18, birdT: 3, pushT: 0, hush: 0,
+  start() {
+    if (this.started) return; this.started = true;
+    const c = audio.ctx;
+    this.humG = c.createGain(); this.humG.gain.value = 0;
+    const hp = audio.panner(0, 2.6, 0); this.humG.connect(hp); hp.connect(audio.sfx);
+    const o1 = c.createOscillator(); o1.frequency.value = 60;
+    const o2 = c.createOscillator(); o2.type = 'triangle'; o2.frequency.value = 120;
+    const g2 = c.createGain(); g2.gain.value = 0.4;
+    o1.connect(this.humG); o2.connect(g2).connect(this.humG); o1.start(); o2.start();
+    const n = c.createBufferSource(); n.buffer = audio.brownBuf; n.loop = true;
+    this.hvacF = c.createBiquadFilter(); this.hvacF.type = 'lowpass'; this.hvacF.frequency.value = 450;
+    this.hvacG = c.createGain(); this.hvacG.gain.value = 0;
+    const vp = audio.panner(VENT_POS.x, VENT_POS.y, VENT_POS.z);
+    n.connect(this.hvacF).connect(this.hvacG).connect(vp); vp.connect(audio.sfx); n.start();
+  },
+  creakSoon() { this.creakT = Math.min(this.creakT, 1.5); },
+  hushHvac() { this.hush = 1; },
+  update(dt) {
+    if (!this.started) return;
+    const c = environment.cur;
+    this.hush = Math.max(0, this.hush - dt * 0.15);
+    this.creakT -= dt;
+    if (this.creakT <= 0) {
+      this.creakT = rand(14, 40) * (1 - robotCtl.moodT / 3 * 0.6);
+      const p = pick([{ x: rand(-2.9, 2.9), y: 2.7, z: rand(-1.9, 1.9) }, { x: -2.95, y: 1.5, z: rand(-1.8, 1.8) }, { x: 2.95, y: 1.5, z: rand(-1.8, 1.8) }, { x: rand(-2.8, 2.8), y: 0.05, z: rand(-1.8, 1.8) }]);
+      noiseBurst({ dur: 0.6, vol: 0.1, type: 'bandpass', freq: rand(340, 420), freq2: rand(200, 260), q: 14, pos: p, rev: 0.3 });
+      if (Math.random() < 0.5) noiseBurst({ dur: 0.4, vol: 0.06, type: 'bandpass', freq: 300, freq2: 190, q: 10, delay: 0.3, pos: p });
+    }
+    if (winState === 'open' || isOutside()) {
+      if ((this.birdT -= dt) <= 0) {
+        this.birdT = rand(2.5, 7);
+        const p = { x: rand(-8, 8), y: rand(2, 4), z: rand(-14, -4) };
+        for (let k = 0; k < 3; k++) tone(3200 + rand(0, 600), 0.09, 'sine', 0.025, k * 0.13, p, 4200 + rand(0, 500));
+      }
+    }
+    if ((this.pushT -= dt) > 0) return;
+    this.pushT = 0.25;
+    const now = audio.ctx.currentTime;
+    this.humG.gain.setTargetAtTime(0.009 * c.power * environment.dip, now, 0.2);
+    this.hvacG.gain.setTargetAtTime((0.025 + c.heat * 0.09) * (1 - this.hush * 0.8), now, 1.2);
+    this.hvacF.frequency.setTargetAtTime(450 + c.heat * 1500, now, 1.5);
+  },
+};
+
+// ---------------------------------------------------------------------
+//  Per-frame house update (called from step()).
+// ---------------------------------------------------------------------
+function updateHouse(dt, t) {
+  const live = state === 'playing' || state === 'chatting';
+  if (live) {
+    playT += dt;
+    keypadNotice.update();
+    windowSys.update();
+    personality.update();
+    if (robotCtl.offer && playT > robotCtl.offer.until) robotCtl.offer = null;
+    for (const ev of endSeq) if (!ev.done && playT >= endT0 + ev.at) { ev.done = true; ev.fn(); }
+  }
+  if (state === 'dying' || state === 'dead') updateDeath(dt);
+  robotCtl.update(dt);
+  updateDoor(dt);
+  curtainSys.update(dt, t);
+  environment.update(dt, t);
+  music.update(dt);
+  ambience.update(dt);
+  updateListener();
+}
+
+// ---------------------------------------------------------------------
+//  Anger 5 → Ivy snaps. Lights die, her eyes are the only thing left,
+//  she closes the distance, blackout. GAME OVER.
+// ---------------------------------------------------------------------
+const death = { t: 0, struck: false, struckT: 0, shown: false };
+function gameOver() {
+  robotCtl.over = true;
+  if (chatOpen) { chatOpen = false; $('chat').classList.remove('open'); $('chatInput').blur(); }
+  state = 'dying';
+  death.t = 0;
+  delivery.abort();
+  $('prompt').style.display = 'none'; lastPrompt = null;
+  $('crosshair').classList.remove('active');
+  if (document.pointerLockElement) document.exitPointerLock();
+  voice.say('[GAME OVER] No more chances. You\'re never leaving. You\'ll stay right here with me… forever.', { ms: 6000, priority: true });
+  setObjective('…');
+}
+function updateDeath(dt) {
+  death.t += dt;
+  if (death.t < 1.1) { if (Math.random() < dt * 22) environment.blip(rand(0, 0.35), 0.05); }
+  else environment.black = Math.min(1, environment.black + dt * 6);              // every light in the house dies
+  music.pulse = 1;
+  // she turns you toward her eyes
+  const dx = robot.position.x - player.x, dz = robot.position.z - player.z;
+  let dy = Math.atan2(-dx, -dz) - player.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+  player.yaw += dy * Math.min(1, dt * 2.5);
+  player.pitch = approach(player.pitch, -0.08, 2, dt);
+  if (!death.struck && death.t > 1.4 && (Math.hypot(dx, dz) < 0.7 || death.t > 5)) {
+    death.struck = true; death.struckT = death.t;
+    tone(46, 0.9, 'sawtooth', 0.3, 0, null, 28);
+    noiseBurst({ dur: 0.6, vol: 0.4, type: 'lowpass', freq: 900 });
+    $('blackout').style.opacity = '1';
+    audio.muted = true; audio.applyVolumes();
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+  }
+  if (death.struck && !death.shown && death.t - death.struckT > 2.4) {
+    death.shown = true; state = 'dead';
+    $('hud').style.display = 'none';
+    $('gameover').classList.remove('hidden');
+  }
+}
+
+// ---------------------------------------------------------------------
+//  [event: door_opened] — she realises what she gave away.
+// ---------------------------------------------------------------------
+let endSeq = [], endT0 = 0;
+function doorOpened() {
+  const r = robotCtl;
+  r.freed = true; r.endingKind = r.anger <= 1;
+  delivery.abort();
+  if (r.endingKind) {
+    environment.setState(MOOD_ENV[0]);
+    r.escaped = true;                                   // the music lets go too
+    voice.say('…My birthday. Of course.', { ms: 3500, priority: true, gap: 1.6 });
+    voice.say('Go. Maybe… come back on April 17th. Because you want to.', { ms: 6500 });
+  } else {
+    environment.setState({ temperature: 'hot', lighting: 'dim', housePower: true });
+    voice.say('You only wanted my birthday to leave me.', { ms: 4000, priority: true, gap: 1.4 });
+    voice.say('You\'re just like him.', { ms: 4000 });
+  }
+  endT0 = playT;
+  endSeq = [
+    { at: 4.5, fn: () => { curtainSys.open(); curtainSys.byHouse = true; toast('The curtains draw back. Sunlight floods the room.', 4500); } },
+    { at: 9.5, fn: () => { if (winState === 'closed') { winState = 'opening'; winT = 0; slideSound(); environment.setState({ windowOpened: true }); } } },
+  ];
+  setObjective('The garden door is unlocking…');
+}
+
+// =====================================================================
+//  Static batching — every non-moving mesh is baked into world space and
+//  merged per (material, shadow flags, raycast role, interaction). ~700
+//  separate meshes (each drawn twice: colour + shadow pass) collapse into a
+//  few dozen draw calls. Interactive props keep their own merged mesh with
+//  the same userData.interact, so hover/E still work exactly as before.
+// =====================================================================
+// Moving objects can't be baked into world space, but their rigid parts can be
+// merged in the parent's local space (robot body, robot head, sliding panel frame).
+function batchRigid(parent, skip = []) {
+  const groups = new Map();
+  for (const o of [...parent.children]) {
+    if (!o.isMesh || skip.includes(o) || Array.isArray(o.material) || o.children.length || o.matrix.determinant() <= 0) continue;
+    o.updateMatrix();
+    const key = [o.material.uuid, o.castShadow, o.receiveShadow, !!o.geometry.index, o.userData.interact ? 1 : 0].join('|');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(o);
+  }
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    const geos = list.map(o => {
+      const g = new THREE.BufferGeometry();
+      for (const a of ['position', 'normal', 'uv']) g.setAttribute(a, o.geometry.attributes[a].clone());
+      if (o.geometry.index) g.setIndex(o.geometry.index.clone());
+      return g.applyMatrix4(o.matrix);
+    });
+    const merged = mergeGeometries(geos, false);
+    if (!merged) continue;
+    const a = list[0], m = new THREE.Mesh(merged, a.material);
+    m.castShadow = a.castShadow; m.receiveShadow = a.receiveShadow;
+    if (a.userData.interact) m.userData.interact = a.userData.interact;
+    parent.add(m);
+    const wasRay = rayTargets.includes(a);
+    for (const o of list) { o.removeFromParent(); const i = rayTargets.indexOf(o); if (i >= 0) rayTargets.splice(i, 1); }
+    if (wasRay) rayTargets.push(m);
+  }
+}
+batchRigid(rb);
+batchRigid(rHead, eyes);
+batchRigid(slidePanel);
+const dynamicRoots = new Set([robot, slidePanel, keypad, camera, ...butterflies.map(b => b.g), ...curtainSys.pieces.map(p => p.g), doorHinge]);
+function staticBatch() {
+  scene.updateMatrixWorld(true);
+  const ids = new Map();
+  const idOf = o => { if (!ids.has(o)) ids.set(o, ids.size + 1); return ids.get(o); };
+  const moving = o => { for (let q = o; q; q = q.parent) if (dynamicRoots.has(q)) return true; return false; };
+  const groups = new Map();
+  scene.traverse(o => {
+    if (!o.isMesh || o.isInstancedMesh || !o.visible || Array.isArray(o.material) || o.material.isShaderMaterial) return;
+    if (moving(o) || o.matrixWorld.determinant() <= 0) return;
+    const g = o.geometry;
+    if (!g.attributes.normal || !g.attributes.uv) return;
+    const ray = rayTargets.includes(o);
+    const key = [o.material.uuid, o.castShadow, o.receiveShadow, ray, !!g.index, o.renderOrder,
+      o.userData.interact ? idOf(o.userData.interact) : 0].join('|');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(o);
+  });
+  for (const list of groups.values()) {
+    if (list.length < 2) continue;
+    const geos = list.map(o => {
+      const src = o.geometry, g = new THREE.BufferGeometry();
+      for (const a of ['position', 'normal', 'uv']) g.setAttribute(a, src.attributes[a].clone());
+      if (src.index) g.setIndex(src.index.clone());
+      return g.applyMatrix4(o.matrixWorld);
+    });
+    const merged = mergeGeometries(geos, false);
+    geos.forEach(g => g.dispose());
+    if (!merged) continue;
+    const a = list[0];
+    const m = new THREE.Mesh(merged, a.material);
+    m.castShadow = a.castShadow; m.receiveShadow = a.receiveShadow; m.renderOrder = a.renderOrder;
+    if (a.userData.interact) m.userData.interact = a.userData.interact;
+    m.matrixAutoUpdate = false;
+    scene.add(m);
+    const wasRay = rayTargets.includes(a);
+    for (const o of list) {
+      o.removeFromParent();
+      const i = rayTargets.indexOf(o);
+      if (i >= 0) rayTargets.splice(i, 1);
+    }
+    if (wasRay) rayTargets.push(m);
+  }
+  // the remaining static singles never move either: skip their per-frame matrix work
+  scene.traverse(o => { if (!moving(o) && o !== scene && !o.isLight && o !== sky && !o.isInstancedMesh) { o.updateMatrix(); o.matrixAutoUpdate = false; } });
+}
+scene.traverse(o => { if (o.isMesh && o.material && !Array.isArray(o.material) && 'envMapIntensity' in o.material) o.material.envMapIntensity = o.material.metalness > 0.5 ? 0.9 : 0.22; });
+staticBatch();
+navBuild();
+frame();
+
+// Small debug/test hook
+window.__game = {
+  player, clues, keyObjs, robot, keys,
+  get state() { return state; }, get unlocked() { return unlocked; }, get winState() { return winState; },
+  get hovered() { return hovered; }, interact, pressKey, beginPlaying, step,
+  ivyReply, openChat, closeChat, get chatOpen() { return chatOpen; },
+  environment, robotCtl, curtainSys, delivery, voice, music, audio, navPath, get playT() { return playT; },
+  stats: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, tex: renderer.info.memory.textures, scale: renderScale, meshes: (() => { let n = 0; scene.traverse(o => o.isMesh && n++); return n; })() }),
+};
+</script>
+</body>
+</html>
